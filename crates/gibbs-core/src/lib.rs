@@ -3,6 +3,43 @@ use std::collections::HashMap;
 
 use std::env;
 
+pub mod parse;
+
+/// References a specific model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Model {
+    Gemma27B3,
+    Qwen235B3,
+}
+
+impl Model {
+    fn all() -> &'static [Model] {
+        use Model::*;
+        &[Gemma27B3, Qwen235B3]
+    }
+
+    pub fn openrouter_str(&self) -> &'static str {
+        use Model::*;
+        match self {
+            Gemma27B3 => &"google/gemma-3-27b-it",
+            Qwen235B3 => &"qwen/qwen3-235b-a22b",
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a str> for Model {
+    type Error = ();
+
+    fn try_from(s: &'a str) -> Result<Model, Self::Error> {
+        for candidate in Model::all().into_iter() {
+            if candidate.openrouter_str() == s {
+                return Ok(candidate.clone());
+            }
+        }
+        Err(())
+    }
+}
+
 /// The serialized format representing the output of a turn in an LLM conversation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -81,13 +118,16 @@ pub async fn wan_ip() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 /// Makes a very simple, text-in-text-out model call.
-pub async fn model_call<S: Into<String>>(prompt: S) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn model_call<S: Into<String>>(
+    model: Model,
+    prompt: S,
+) -> Result<String, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     let res = client
         .post("https://openrouter.ai/api/v1/chat/completions")
         .bearer_auth(env::var("OR_KEY").unwrap())
         .json(&CompletionsRequest {
-            model: "google/gemma-3-27b-it".into(),
+            model: model.openrouter_str().into(),
             messages: vec![ChatMessage::system(prompt)],
         })
         .send()

@@ -14,5 +14,8 @@ tokio = { version = "1", features = ["full"] }
 
 [dependencies]
 reqwest.workspace = true
+
+markdown.workspace = true
 serde_json.workspace = true
+serde_json_lenient.workspace = true
 serde.workspace = true

@@ -19,3 +19,5 @@ markdown.workspace = true
 serde_json.workspace = true
 serde_json_lenient.workspace = true
 serde.workspace = true
+
+indoc.workspace = true

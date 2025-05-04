@@ -9,6 +9,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 serde_json_lenient = { version = "^0.2" }
 
+indoc = "^2.0"
 
 # our crates
 gibbs-core = { version = "0.0.1", path = "crates/gibbs-core" }

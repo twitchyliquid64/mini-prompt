@@ -10,12 +10,13 @@ pub mod parse;
 pub enum Model {
     Gemma27B3,
     Qwen235B3,
+    Phi4,
 }
 
 impl Model {
     fn all() -> &'static [Model] {
         use Model::*;
-        &[Gemma27B3, Qwen235B3]
+        &[Gemma27B3, Qwen235B3, Phi4]
     }
 
     pub fn openrouter_str(&self) -> &'static str {
@@ -23,6 +24,7 @@ impl Model {
         match self {
             Gemma27B3 => &"google/gemma-3-27b-it",
             Qwen235B3 => &"qwen/qwen3-235b-a22b",
+            Phi4 => &"microsoft/phi-4",
         }
     }
 }
@@ -79,14 +81,34 @@ pub(crate) struct ChatChoice {
     pub finish_reason: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct OpenrouterProvider {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ignore: Vec<String>,
+}
+
 /// A request to the OpenAI Chat Completions API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CompletionsRequest {
     /// Model identifier to use for completion
     pub model: String,
 
+    pub provider: OpenrouterProvider,
+
     /// Model input and output
     pub messages: Vec<ChatMessage>,
+}
+
+impl Default for CompletionsRequest {
+    fn default() -> Self {
+        Self {
+            model: Model::Gemma27B3.openrouter_str().into(),
+            messages: vec![],
+            provider: OpenrouterProvider {
+                ignore: vec!["Nebius".into(), "Kluster".into()],
+            },
+        }
+    }
 }
 
 /// A response from the OpenAI Completions API.
@@ -129,6 +151,7 @@ pub async fn model_call<S: Into<String>>(
         .json(&CompletionsRequest {
             model: model.openrouter_str().into(),
             messages: vec![ChatMessage::system(prompt)],
+            ..Default::default()
         })
         .send()
         .await?

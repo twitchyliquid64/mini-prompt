@@ -13,9 +13,10 @@ pub struct Out {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let resp =
         model_call(Model::Gemma27B3, indoc! {
-            "Whats the roots of the equation y = 13x + 5x^2? Show your working, before reaching a final answer.
+            "What are the real roots of the equation y = 1491x + 15x^3? Show your working, before reaching a final answer. Convert your final answer(s) to a decimal form.
             
-            At the end, output the final answer as JSON within triple backticks. Do not represent your working in the JSON."
+            At the end, output the final answer as JSON within triple backticks (A markdown code block with json as the language). Do not represent your working in the JSON.
+            The json should have a single key 'roots', which is an array of floating point solutions to the roots of the equation."
         }).await?;
     println!("{}", resp);
 

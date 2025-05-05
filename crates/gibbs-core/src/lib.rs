@@ -27,6 +27,14 @@ impl Model {
             Phi4 => &"microsoft/phi-4",
         }
     }
+
+    pub fn make_prompt<S: Into<String>>(&self, prompt: S) -> ChatMessage {
+        use Model::*;
+        match self {
+            Phi4 => ChatMessage::user(prompt),
+            _ => ChatMessage::system(prompt),
+        }
+    }
 }
 
 impl<'a> TryFrom<&'a str> for Model {
@@ -115,15 +123,19 @@ impl Default for CompletionsRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CompletionsResponse {
     /// Unique ID
+    #[serde(default)]
     pub id: String,
 
     /// Object type, always "chat.completion"
-    pub object: String,
+    pub object: Option<String>,
 
+    #[serde(default)]
     pub created: u64,
+    #[serde(default)]
     pub model: String,
 
     /// Array of completion choices
+    #[serde(default)]
     pub choices: Vec<ChatChoice>,
 }
 
@@ -145,21 +157,29 @@ pub async fn model_call<S: Into<String>>(
     prompt: S,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
-    let res = client
+    let resp = client
         .post("https://openrouter.ai/api/v1/chat/completions")
         .bearer_auth(env::var("OR_KEY").unwrap())
         .json(&CompletionsRequest {
             model: model.openrouter_str().into(),
-            messages: vec![ChatMessage::system(prompt)],
+            messages: vec![model.make_prompt(prompt)],
             ..Default::default()
         })
         .send()
-        .await?
-        .json::<CompletionsResponse>()
         .await?;
 
-    if res.object != "chat.completion" {
-        return Err(format!("unexpected object: {}", res.object).into());
+    // println!("res: {:?}", resp);
+    // panic!("body: {:?}", resp.text().await?);
+
+    let mut res = resp.json::<CompletionsResponse>().await?;
+
+    if res.model == "" {
+        res.model = model.openrouter_str().into();
+    }
+
+    if let Some("chat.completion") = res.object.as_ref().map(|s| s.as_str()) {
+    } else if res.object.is_some() {
+        return Err(format!("unexpected value for 'object': {:?}", res.object).into());
     }
     if res.choices.len() == 0 {
         return Err("unexpected: no completion choices returned".into());
@@ -176,7 +196,7 @@ pub async fn model_call<S: Into<String>>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
     #[test]
     fn smoke() {}

@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use std::env;
-
 pub mod parse;
 
 /// References a specific model.
@@ -11,12 +9,13 @@ pub enum Model {
     Gemma27B3,
     Qwen235B3,
     Phi4,
+    Gemini2Flash,
 }
 
 impl Model {
     fn all() -> &'static [Model] {
         use Model::*;
-        &[Gemma27B3, Qwen235B3, Phi4]
+        &[Gemma27B3, Qwen235B3, Phi4, Gemini2Flash]
     }
 
     pub fn openrouter_str(&self) -> &'static str {
@@ -25,6 +24,7 @@ impl Model {
             Gemma27B3 => &"google/gemma-3-27b-it",
             Qwen235B3 => &"qwen/qwen3-235b-a22b",
             Phi4 => &"microsoft/phi-4",
+            Gemini2Flash => &"google/gemini-2.0-flash-001",
         }
     }
 
@@ -47,6 +47,35 @@ impl<'a> TryFrom<&'a str> for Model {
             }
         }
         Err(())
+    }
+}
+
+pub mod backends;
+
+pub trait CompletionBackend: Send {
+    /// Returns information about the model this backend is wired to.
+    fn get_model(&self) -> &Model;
+
+    /// Implements one model call to complete a turn in an LLM conversation. The workhorse of this trait.
+    fn call(
+        &self,
+        messages: Vec<ChatMessage>,
+    ) -> impl std::future::Future<Output = Result<CompletionsResponse, Box<dyn std::error::Error>>> + Send;
+
+    /// Easy method to prompt a model and get the response as a string.
+    fn simple_call<S: Into<String> + Send>(
+        &self,
+        prompt: S,
+    ) -> impl std::future::Future<Output = Result<String, Box<dyn std::error::Error>>> {
+        async {
+            let res = self
+                .call(vec![self.get_model().make_prompt(prompt)])
+                .await?;
+            match res.choices.into_iter().next().unwrap().message.content {
+                Some(c) => Ok(c),
+                None => Err("unexpected: no message content".into()),
+            }
+        }
     }
 }
 
@@ -78,7 +107,7 @@ impl ChatMessage {
 
 /// The serialized description of one response from the model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct ChatChoice {
+pub struct ChatChoice {
     /// Index of this choice in the array of choices
     pub index: usize,
 
@@ -121,7 +150,7 @@ impl Default for CompletionsRequest {
 
 /// A response from the OpenAI Completions API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct CompletionsResponse {
+pub struct CompletionsResponse {
     /// Unique ID
     #[serde(default)]
     pub id: String,
@@ -152,46 +181,16 @@ pub async fn wan_ip() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 /// Makes a very simple, text-in-text-out model call.
-pub async fn model_call<S: Into<String>>(
+pub async fn model_call<S: Into<String> + Send>(
     model: Model,
     prompt: S,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let client = reqwest::Client::new();
-    let resp = client
-        .post("https://openrouter.ai/api/v1/chat/completions")
-        .bearer_auth(env::var("OR_KEY").unwrap())
-        .json(&CompletionsRequest {
-            model: model.openrouter_str().into(),
-            messages: vec![model.make_prompt(prompt)],
-            ..Default::default()
-        })
-        .send()
-        .await?;
-
-    // println!("res: {:?}", resp);
-    // panic!("body: {:?}", resp.text().await?);
-
-    let mut res = resp.json::<CompletionsResponse>().await?;
-
-    if res.model == "" {
-        res.model = model.openrouter_str().into();
+    backends::OpenrouterModel {
+        model,
+        api_key: None,
     }
-
-    if let Some("chat.completion") = res.object.as_ref().map(|s| s.as_str()) {
-    } else if res.object.is_some() {
-        return Err(format!("unexpected value for 'object': {:?}", res.object).into());
-    }
-    if res.choices.len() == 0 {
-        return Err("unexpected: no completion choices returned".into());
-    }
-    if res.choices[0].finish_reason != "stop" {
-        return Err(format!("unexpected finish reason: {}", res.choices[0].finish_reason).into());
-    }
-
-    match res.choices.into_iter().next().unwrap().message.content {
-        Some(c) => Ok(c),
-        None => Err("unexpected: no message content".into()),
-    }
+    .simple_call(prompt)
+    .await
 }
 
 #[cfg(test)]

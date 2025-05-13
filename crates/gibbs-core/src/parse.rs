@@ -122,10 +122,66 @@ pub fn multiclass<'a>(text: &str, opts: &'a EnumOptions) -> Option<&'a str> {
     None
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+/// Describes how to extract an answer between HTML/XML tags.
+///
+/// Excepts the LLM to output in the form `<key>answer</key>` towards
+/// the end of its output.
+pub struct TagOptions<'a> {
+    key: &'a str,
+}
+
+impl<'a> Default for TagOptions<'a> {
+    fn default() -> Self {
+        Self { key: &"answer" }
+    }
+}
+
+/// Extracts an answer between tags, using the given opts as configuration.
+///
+/// If a tagged answer is present, the answer is returned as well as any remaining
+/// text after the answer.
+pub fn tagged<'a, 'b>(mut text: &'a str, opts: &'b TagOptions<'b>) -> Option<(&'a str, &'a str)> {
+    while text.len() > 0 {
+        let l_bracket = text.find('<');
+        let has_key = l_bracket
+            .map(|i| text[i + 1..].starts_with(opts.key))
+            .unwrap_or(false);
+        let has_close = l_bracket
+            .map(|i| text[i + 1 + opts.key.len()..].starts_with('>'))
+            .unwrap_or(false);
+
+        if has_key && has_close {
+            let body = &text[l_bracket.unwrap() + opts.key.len() + 2..];
+
+            let l_bracket = body.find("</");
+            let has_key = l_bracket
+                .map(|i| body[i + 2..].starts_with(opts.key))
+                .unwrap_or(false);
+            let has_close = l_bracket
+                .map(|i| body[i + 2 + opts.key.len()..].starts_with('>'))
+                .unwrap_or(false);
+
+            if has_key && has_close {
+                return Some((
+                    &body[..l_bracket.unwrap()],
+                    &body[l_bracket.unwrap() + 3 + opts.key.len()..],
+                ));
+            }
+            text = body;
+            continue;
+        }
+        break;
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
-    use super::multiclass;
-    use super::{markdown_codeblock, MarkdownOptions};
+    use super::{markdown_codeblock, MarkdownOptions, TagOptions};
+    use super::{multiclass, tagged};
     use indoc::indoc;
 
     #[test]
@@ -233,6 +289,62 @@ Some random earlier text.
                 &["query", "action"][..].into()
             ),
             Some("action")
+        );
+    }
+
+    #[test]
+    fn parse_tagged_simple() {
+        assert_eq!(
+            tagged(
+                indoc! {
+                    "So based on the given input, the answer is:
+                    <answer>query</answer>"
+                },
+                &TagOptions::default()
+            ),
+            Some(("query", ""))
+        );
+    }
+
+    #[test]
+    fn parse_tagged_multiple() {
+        let a1 = tagged(
+            indoc! {
+                "So based on the given input, the answer is:
+                    <answer>swiggity</answer>
+                    <answer>swooty</answer>
+                    "
+            },
+            &TagOptions::default(),
+        );
+        assert_eq!(a1, Some(("swiggity", "\n<answer>swooty</answer>\n")));
+        assert_eq!(
+            tagged(a1.unwrap().1, &TagOptions::default()),
+            Some(("swooty", "\n"))
+        );
+    }
+
+    #[test]
+    fn parse_tagged_missing() {
+        assert_eq!(
+            tagged(
+                indoc! {
+                    "Some text
+                    Where the tag is not to be found"
+                },
+                &TagOptions::default()
+            ),
+            None
+        );
+        assert_eq!(
+            tagged(
+                indoc! {
+                    "The tag isnt present, but a different one is:
+                    <blueberries>query</blueberries>"
+                },
+                &TagOptions::default()
+            ),
+            None
         );
     }
 }

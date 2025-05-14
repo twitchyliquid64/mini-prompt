@@ -138,6 +138,42 @@ impl<'a> Default for TagOptions<'a> {
     }
 }
 
+impl From<&'static str> for TagOptions<'static> {
+    fn from(s: &'static str) -> Self {
+        Self { key: s }
+    }
+}
+
+impl<'a> TagOptions<'a> {
+    /// Iterates over each usage of the tag in the given str, yielding the contents each time.
+    pub fn iter<'s>(self, s: &'s str) -> TagIter<'a, 's> {
+        TagIter {
+            opts: self,
+            remaining: s,
+        }
+    }
+}
+
+/// An iterator over the tags in some [str], constructed using [TagOptions::iter].
+pub struct TagIter<'opts, 's> {
+    opts: TagOptions<'opts>,
+    remaining: &'s str,
+}
+
+impl<'opts, 's> Iterator for TagIter<'opts, 's> {
+    type Item = &'s str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match tagged(self.remaining, &self.opts) {
+            Some((answer, remaining)) => {
+                self.remaining = remaining;
+                Some(answer)
+            }
+            None => None,
+        }
+    }
+}
+
 /// Extracts an answer between tags, using the given opts as configuration.
 ///
 /// If a tagged answer is present, the answer is returned as well as any remaining

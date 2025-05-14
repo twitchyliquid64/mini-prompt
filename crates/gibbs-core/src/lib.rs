@@ -10,12 +10,13 @@ pub enum Model {
     Qwen235B3,
     Phi4,
     Gemini2Flash,
+    Gemini25Flash,
 }
 
 impl Model {
     fn all() -> &'static [Model] {
         use Model::*;
-        &[Gemma27B3, Qwen235B3, Phi4, Gemini2Flash]
+        &[Gemma27B3, Qwen235B3, Phi4, Gemini2Flash, Gemini25Flash]
     }
 
     pub fn openrouter_str(&self) -> &'static str {
@@ -25,6 +26,7 @@ impl Model {
             Qwen235B3 => &"qwen/qwen3-235b-a22b",
             Phi4 => &"microsoft/phi-4",
             Gemini2Flash => &"google/gemini-2.0-flash-001",
+            Gemini25Flash => &"google/gemini-2.5-flash-preview",
         }
     }
 

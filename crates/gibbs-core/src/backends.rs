@@ -1,4 +1,5 @@
-use crate::{ChatMessage, CompletionBackend, CompletionsRequest, CompletionsResponse, Model};
+use crate::data_model::{FinishReason, ToolChoice};
+use crate::{ChatMessage, CompletionBackend, CompletionsRequest, CompletionsResponse, Model, Tool};
 use reqwest::Client;
 use std::env;
 
@@ -17,6 +18,7 @@ impl CompletionBackend for OpenrouterModel {
     async fn call(
         &self,
         messages: Vec<ChatMessage>,
+        tools: Vec<Tool>,
     ) -> Result<CompletionsResponse, Box<dyn std::error::Error>> {
         let client = Client::new();
         let resp = client
@@ -29,6 +31,12 @@ impl CompletionBackend for OpenrouterModel {
             .json(&CompletionsRequest {
                 model: self.model.openrouter_str().into(),
                 messages,
+                tool_choice: if tools.is_empty() {
+                    None
+                } else {
+                    Some(ToolChoice::Auto)
+                },
+                tools,
                 ..Default::default()
             })
             .send()
@@ -50,10 +58,12 @@ impl CompletionBackend for OpenrouterModel {
         if res.choices.len() == 0 {
             return Err("unexpected: no completion choices returned".into());
         }
-        if res.choices[0].finish_reason != "stop" {
-            return Err(
-                format!("unexpected finish reason: {}", res.choices[0].finish_reason).into(),
-            );
+        if res.choices[0].finish_reason != FinishReason::Stop {
+            return Err(format!(
+                "unexpected finish reason: {:?}",
+                res.choices[0].finish_reason
+            )
+            .into());
         }
 
         Ok(res)

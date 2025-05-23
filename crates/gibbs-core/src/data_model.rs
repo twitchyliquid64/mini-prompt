@@ -1,4 +1,4 @@
-use crate::Model;
+use crate::ModelRef;
 use serde::{Deserialize, Serialize};
 
 /// Describes the source of a chat message.
@@ -26,11 +26,11 @@ pub struct ChatMessage {
     ///
     /// Typically invoked from a model: i.e. role == `assistant`
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    tool_calls: Vec<ToolCall>,
+    pub tool_calls: Vec<ToolCall>,
 
     /// Tool call that this message is responding to.
     #[serde(skip_serializing_if = "Option::is_none")]
-    tool_call_id: Option<String>,
+    pub tool_call_id: Option<String>,
 }
 
 impl ChatMessage {
@@ -56,11 +56,11 @@ impl ChatMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
     /// The ID of the tool call.
-    id: String,
+    pub id: String,
     /// The type of the tool, must be `function`.
-    r#type: ToolCallType,
+    pub r#type: ToolCallType,
     /// The function that the model called.
-    function: FunctionCall,
+    pub function: FunctionCall,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -87,8 +87,8 @@ pub(crate) struct OpenrouterProvider {
 #[derive(Clone, Debug, Serialize)]
 pub struct Tool {
     /// Must be `function`
-    r#type: String,
-    function: FunctionInfo,
+    pub r#type: String,
+    pub function: FunctionInfo,
 }
 
 impl From<FunctionInfo> for Tool {
@@ -161,7 +161,7 @@ pub(crate) struct CompletionsRequest {
 impl Default for CompletionsRequest {
     fn default() -> Self {
         Self {
-            model: Model::Gemma27B3.openrouter_str().into(),
+            model: ModelRef::Gemma27B3.openrouter_str().into(),
             messages: vec![],
             tools: vec![],
             tool_choice: None,
@@ -212,4 +212,6 @@ pub enum FinishReason {
     #[default]
     Stop,
     ToolCalls,
+    Length,
+    ContentFilter,
 }

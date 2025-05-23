@@ -1,9 +1,9 @@
 use gibbs_core::parse::TagOptions;
-use gibbs_core::{model_call, Model};
+use gibbs_core::{model_call, ModelRef};
 use indoc::indoc;
 use serde::Deserialize;
 
-const MODEL: Model = Model::Gemini2Flash;
+const MODEL: ModelRef = ModelRef::Gemini2Flash;
 
 const BASE: &str = indoc! {
     "You are an AI assistant chatting with a user. You respond to the user based on their message and background knowledge you are provided with.

@@ -1,22 +1,22 @@
 use crate::data_model::{FinishReason, ToolChoice};
-use crate::{ChatMessage, CompletionBackend, CompletionsRequest, CompletionsResponse, Model, Tool};
+use crate::{ChatMessage, CompletionsRequest, CompletionsResponse, ModelCaller, ModelRef, Tool};
 use reqwest::Client;
 use std::env;
 
-/// A [CompletionBackend] that talks to a model accessible via Openrouter.
-#[derive(Debug, Clone)]
-pub struct OpenrouterModel {
-    pub model: Model,
+/// A [ModelCaller] that talks to a model accessible via Openrouter.
+#[derive(Debug, Clone, Default)]
+pub struct Openrouter {
+    pub model: ModelRef,
     pub api_key: Option<String>,
 }
 
-impl CompletionBackend for OpenrouterModel {
-    fn get_model(&self) -> &Model {
+impl ModelCaller for Openrouter {
+    fn get_model(&self) -> &ModelRef {
         &self.model
     }
 
     async fn call(
-        &self,
+        &mut self,
         messages: Vec<ChatMessage>,
         tools: Vec<Tool>,
     ) -> Result<CompletionsResponse, Box<dyn std::error::Error>> {
@@ -58,14 +58,29 @@ impl CompletionBackend for OpenrouterModel {
         if res.choices.len() == 0 {
             return Err("unexpected: no completion choices returned".into());
         }
-        if res.choices[0].finish_reason != FinishReason::Stop {
-            return Err(format!(
+
+        match res.choices[0].finish_reason {
+            FinishReason::Stop | FinishReason::ToolCalls => Ok(res),
+            // {
+            //     next_messages.push(res.choices[0].message.clone());
+
+            //     for c in res.choices[0].message.tool_calls.iter() {
+            //         let response_msg = self
+            //             .tool_call(&c.function.name, c.function.arguments.clone())
+            //             .await
+            //             .map_err(|e| -> Box<dyn std::error::Error> {
+            //                 format!("function call failed: {:?}", e).into()
+            //             })?;
+            //         next_messages.push(response_msg);
+            //     }
+
+            //     self.call(next_messages)
+            // }
+            _ => Err(format!(
                 "unexpected finish reason: {:?}",
                 res.choices[0].finish_reason
             )
-            .into());
+            .into()),
         }
-
-        Ok(res)
     }
 }

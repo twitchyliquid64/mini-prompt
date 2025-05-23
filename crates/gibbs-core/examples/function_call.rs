@@ -1,16 +1,16 @@
-use gibbs_core::backends;
+use gibbs_core::callers;
 use gibbs_core::data_model::FunctionInfo;
-use gibbs_core::{CompletionBackend, Model};
+use gibbs_core::{ModelCaller, ModelRef};
 
 use indoc::indoc;
 
-const MODEL: Model = Model::Gemini25Flash;
+const MODEL: ModelRef = ModelRef::Gemini25Flash;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let backend = backends::OpenrouterModel {
+    let mut backend = callers::Openrouter {
         model: MODEL,
-        api_key: None,
+        ..Default::default()
     };
 
     let resp = backend

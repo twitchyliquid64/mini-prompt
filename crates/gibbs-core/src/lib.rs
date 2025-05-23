@@ -5,8 +5,9 @@ use crate::data_model::{ChatMessage, CompletionsRequest, CompletionsResponse, To
 pub mod parse;
 
 /// References a specific model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Model {
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum ModelRef {
+    #[default]
     Gemma27B3,
     Qwen235B3,
     Phi4,
@@ -15,9 +16,9 @@ pub enum Model {
     DevstralSmall,
 }
 
-impl Model {
-    fn all() -> &'static [Model] {
-        use Model::*;
+impl ModelRef {
+    fn all() -> &'static [ModelRef] {
+        use ModelRef::*;
         &[
             Gemma27B3,
             Qwen235B3,
@@ -29,7 +30,7 @@ impl Model {
     }
 
     pub fn openrouter_str(&self) -> &'static str {
-        use Model::*;
+        use ModelRef::*;
         match self {
             Gemma27B3 => &"google/gemma-3-27b-it",
             Qwen235B3 => &"qwen/qwen3-235b-a22b",
@@ -41,7 +42,7 @@ impl Model {
     }
 
     pub fn make_prompt<S: Into<String>>(&self, prompt: S) -> ChatMessage {
-        use Model::*;
+        use ModelRef::*;
         match self {
             Phi4 => ChatMessage::user(prompt),
             _ => ChatMessage::system(prompt),
@@ -49,11 +50,11 @@ impl Model {
     }
 }
 
-impl<'a> TryFrom<&'a str> for Model {
+impl<'a> TryFrom<&'a str> for ModelRef {
     type Error = ();
 
-    fn try_from(s: &'a str) -> Result<Model, Self::Error> {
-        for candidate in Model::all().into_iter() {
+    fn try_from(s: &'a str) -> Result<ModelRef, Self::Error> {
+        for candidate in ModelRef::all().into_iter() {
             if candidate.openrouter_str() == s {
                 return Ok(candidate.clone());
             }
@@ -62,22 +63,23 @@ impl<'a> TryFrom<&'a str> for Model {
     }
 }
 
-pub mod backends;
+pub mod callers;
 
-pub trait CompletionBackend: Send {
+/// A type which is able to make model calls.
+pub trait ModelCaller: Send {
     /// Returns information about the model this backend is wired to.
-    fn get_model(&self) -> &Model;
+    fn get_model(&self) -> &ModelRef;
 
     /// Implements one model call to complete a turn in an LLM conversation. The workhorse of this trait.
     fn call(
-        &self,
+        &mut self,
         messages: Vec<ChatMessage>,
         tools: Vec<Tool>,
     ) -> impl std::future::Future<Output = Result<CompletionsResponse, Box<dyn std::error::Error>>> + Send;
 
-    /// Easy method to prompt a model and get the response as a string.
+    /// Convenience method to prompt a model and get the response as a string.
     fn simple_call<S: Into<String> + Send>(
-        &self,
+        &mut self,
         prompt: S,
     ) -> impl std::future::Future<Output = Result<String, Box<dyn std::error::Error>>> {
         async {
@@ -90,6 +92,17 @@ pub trait CompletionBackend: Send {
             }
         }
     }
+}
+
+/// A collection of tools a model can use.
+pub trait Toolbox: Send {
+    fn tools(&self) -> Vec<Tool>;
+
+    fn tool_call(
+        &mut self,
+        name: &str,
+        args: String,
+    ) -> impl std::future::Future<Output = Result<ChatMessage, ()>> + Send;
 }
 
 /// Returns the WAN IP from which this code is accessing the internet.
@@ -106,12 +119,12 @@ pub async fn wan_ip() -> Result<String, Box<dyn std::error::Error>> {
 
 /// Makes a very simple, text-in-text-out model call.
 pub async fn model_call<S: Into<String> + Send>(
-    model: Model,
+    model: ModelRef,
     prompt: S,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    backends::OpenrouterModel {
+    callers::Openrouter {
         model,
-        api_key: None,
+        ..Default::default()
     }
     .simple_call(prompt)
     .await

@@ -1,9 +1,9 @@
 use gibbs_core::parse::TagOptions;
-use gibbs_core::{model_call, ModelRef};
+use gibbs_core::{callers, ModelCaller};
 use indoc::indoc;
 use serde::Deserialize;
 
-const MODEL: ModelRef = ModelRef::Gemini2Flash;
+type M = gibbs_core::models::Gemini2Flash;
 
 const BASE: &str = indoc! {
     "You are an AI assistant chatting with a user. You respond to the user based on their message and background knowledge you are provided with.
@@ -90,19 +90,19 @@ pub struct EditMem {
 #[tokio::test]
 #[ignore]
 async fn memory_add() {
-    let resp = model_call(
-        MODEL,
-        String::from(BASE)
-            + indoc! {
-                "## Your turn
+    let resp = callers::Openrouter::<M>::default()
+        .simple_call(
+            String::from(BASE)
+                + indoc! {
+                    "## Your turn
 
                 User says: Record that Julian is hosting another sausage party on the 11th of Feb
                 Response:
                 "
-            },
-    )
-    .await
-    .unwrap();
+                },
+        )
+        .await
+        .unwrap();
     println!("{}", resp);
 
     let new_mems: Vec<NewMem> = TagOptions::from("add_memory")
@@ -129,19 +129,19 @@ async fn memory_add() {
 #[tokio::test]
 #[ignore]
 async fn memory_edit() {
-    let resp = model_call(
-        MODEL,
-        String::from(BASE)
-            + indoc! {
-                "## Your turn
+    let resp = callers::Openrouter::<M>::default()
+        .simple_call(
+            String::from(BASE)
+                + indoc! {
+                    "## Your turn
 
                 User says: My move has been postponed to the 23rd of July.
                 Response:
                 "
-            },
-    )
-    .await
-    .unwrap();
+                },
+        )
+        .await
+        .unwrap();
     println!("{}", resp);
 
     let edit_mems: Vec<EditMem> = TagOptions::from("edit_memory")
@@ -165,19 +165,19 @@ async fn memory_edit() {
 #[tokio::test]
 #[ignore]
 async fn memory_delete() {
-    let resp = model_call(
-        MODEL,
-        String::from(BASE)
-            + indoc! {
-                "## Your turn
+    let resp = callers::Openrouter::<M>::default()
+        .simple_call(
+            String::from(BASE)
+                + indoc! {
+                    "## Your turn
 
                 User says: My move has been cancelled, I'm saying in my current apartment.
                 Response:
                 "
-            },
-    )
-    .await
-    .unwrap();
+                },
+        )
+        .await
+        .unwrap();
     println!("{}", resp);
 
     let delete_mems: Vec<Vec<usize>> = TagOptions::from("delete_memory")

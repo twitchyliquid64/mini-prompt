@@ -1,4 +1,5 @@
-use crate::ModelRef;
+//! Wire-format types to use when driving LLM APIs.
+
 use serde::{Deserialize, Serialize};
 
 /// Describes the source of a chat message.
@@ -161,7 +162,8 @@ pub(crate) struct CompletionsRequest {
 impl Default for CompletionsRequest {
     fn default() -> Self {
         Self {
-            model: ModelRef::Gemma27B3.openrouter_str().into(),
+            model: <crate::models::Gemma27B3 as crate::models::OpenrouterModel>::MODEL_STR
+                .to_string(),
             messages: vec![],
             tools: vec![],
             tool_choice: None,

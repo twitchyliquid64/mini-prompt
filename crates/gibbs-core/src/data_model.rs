@@ -32,6 +32,10 @@ pub struct ChatMessage {
     /// Tool call that this message is responding to.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
+
+    /// Name of the actor, typically set to the responding function if a tool call response
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 impl ChatMessage {
@@ -41,6 +45,7 @@ impl ChatMessage {
             content: Some(s.into()),
             tool_calls: vec![],
             tool_call_id: None,
+            name: None,
         }
     }
     pub fn system<S: Into<String>>(s: S) -> Self {
@@ -49,6 +54,16 @@ impl ChatMessage {
             content: Some(s.into()),
             tool_calls: vec![],
             tool_call_id: None,
+            name: None,
+        }
+    }
+    pub fn tool<S: Into<String>>(s: S) -> Self {
+        ChatMessage {
+            role: MessageRole::Tool,
+            content: Some(s.into()),
+            tool_calls: vec![],
+            tool_call_id: None,
+            name: None,
         }
     }
 }
@@ -105,12 +120,12 @@ impl From<FunctionInfo> for Tool {
 #[derive(Debug, Clone, Serialize)]
 pub struct FunctionInfo {
     /// A description of what the function does.
-    description: String,
+    pub description: String,
     /// The name of the function to be called. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
-    name: Option<String>,
+    pub name: Option<String>,
     /// The parameters the functions accepts, described as a JSON Schema object. See the guide for examples, and the JSON Schema reference for documentation about the format.
     /// To describe a function that accepts no parameters, provide the value {"type": "object", "properties": {}}.
-    parameters: serde_json::Value,
+    pub parameters: serde_json::Value,
 }
 
 impl FunctionInfo {

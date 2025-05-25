@@ -10,6 +10,7 @@ pub mod callers;
 pub use callers::ModelCaller;
 
 pub mod tools;
+pub use tools::ToolsSession;
 
 #[cfg(test)]
 mod tests {

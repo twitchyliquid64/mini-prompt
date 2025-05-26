@@ -70,6 +70,24 @@ impl OpenrouterModel for DevstralSmall {
     const NO_SYS_PROMPT: bool = false;
 }
 
+// OpenAI's GPT-4o-mini model.
+#[derive(Default, Debug, Clone)]
+pub struct GPT4oMini;
+
+impl OpenrouterModel for GPT4oMini {
+    const MODEL_STR: &'static str = &"openai/gpt-4o-mini";
+    const NO_SYS_PROMPT: bool = false;
+}
+
+// Deepseek v3 0324
+#[derive(Default, Debug, Clone)]
+pub struct Deepseek0324v3;
+
+impl OpenrouterModel for Deepseek0324v3 {
+    const MODEL_STR: &'static str = &"deepseek/deepseek-chat-v3-0324";
+    const NO_SYS_PROMPT: bool = false;
+}
+
 impl<X: OpenrouterModel> Model for X {
     fn make_prompt(&self, prompt: String) -> ChatMessage {
         if X::NO_SYS_PROMPT {

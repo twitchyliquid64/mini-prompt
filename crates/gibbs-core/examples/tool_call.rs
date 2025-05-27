@@ -1,13 +1,13 @@
 use gibbs_core::data_model::{ChatMessage, FunctionInfo};
-use gibbs_core::{callers, models, ModelCaller, ToolsSession};
+use gibbs_core::{callers, models, CallErr, ModelCaller, ToolsSession};
 
 use indoc::indoc;
 use std::sync::{Arc, Mutex};
 
-type M = models::Gemini25Flash;
+type M = models::ClaudeSonnet4;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), CallErr> {
     let flubb_count = Arc::new(Mutex::new(0usize));
 
     let resp = {

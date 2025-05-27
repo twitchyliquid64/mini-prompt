@@ -88,6 +88,15 @@ impl OpenrouterModel for Deepseek0324v3 {
     const NO_SYS_PROMPT: bool = false;
 }
 
+// Claude Sonnet 4
+#[derive(Default, Debug, Clone)]
+pub struct ClaudeSonnet4;
+
+impl OpenrouterModel for ClaudeSonnet4 {
+    const MODEL_STR: &'static str = &"anthropic/claude-sonnet-4";
+    const NO_SYS_PROMPT: bool = false;
+}
+
 impl<X: OpenrouterModel> Model for X {
     fn make_prompt(&self, prompt: String) -> ChatMessage {
         if X::NO_SYS_PROMPT {

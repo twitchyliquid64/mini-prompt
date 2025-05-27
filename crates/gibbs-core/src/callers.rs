@@ -1,6 +1,6 @@
 use crate::data_model::{FinishReason, ToolChoice};
 use crate::models::OpenrouterModel;
-use crate::{ChatMessage, CompletionsRequest, CompletionsResponse, Model, Tool};
+use crate::{CallErr, ChatMessage, CompletionsRequest, CompletionsResponse, Model, Tool};
 use reqwest::Client;
 use std::env;
 
@@ -14,13 +14,13 @@ pub trait ModelCaller: Send {
         &mut self,
         messages: Vec<ChatMessage>,
         tools: Vec<Tool>,
-    ) -> impl std::future::Future<Output = Result<CompletionsResponse, Box<dyn std::error::Error>>> + Send;
+    ) -> impl std::future::Future<Output = Result<CompletionsResponse, CallErr>> + Send;
 
     /// Convenience method to prompt a model and get the response as a string.
     fn simple_call<S: Into<String> + Send>(
         &mut self,
         prompt: S,
-    ) -> impl std::future::Future<Output = Result<String, Box<dyn std::error::Error>>> {
+    ) -> impl std::future::Future<Output = Result<String, CallErr>> {
         let prompt = self.get_model().make_prompt(prompt.into());
         async {
             let res = self.call(vec![prompt], vec![]).await?;
@@ -48,7 +48,7 @@ impl<M: OpenrouterModel> ModelCaller for Openrouter<M> {
         &mut self,
         messages: Vec<ChatMessage>,
         tools: Vec<Tool>,
-    ) -> Result<CompletionsResponse, Box<dyn std::error::Error>> {
+    ) -> Result<CompletionsResponse, CallErr> {
         let client = Client::new();
         let resp = client
             .post("https://openrouter.ai/api/v1/chat/completions")
@@ -85,7 +85,7 @@ impl<M: OpenrouterModel> ModelCaller for Openrouter<M> {
             return Err(format!("unexpected value for 'object': {}", res.object.unwrap()).into());
         }
         if res.choices.len() == 0 {
-            return Err("unexpected: no completion choices returned".into());
+            return Err(CallErr::NoCompletions);
         }
 
         match res.choices[0].finish_reason {

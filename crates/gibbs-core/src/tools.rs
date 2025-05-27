@@ -1,5 +1,5 @@
 use crate::data_model::{FinishReason, MessageRole};
-use crate::{ChatMessage, CompletionsResponse, Model, ModelCaller, Tool};
+use crate::{CallErr, ChatMessage, CompletionsResponse, Model, ModelCaller, Tool};
 
 const MAX_TOOL_ITER: usize = 12;
 
@@ -31,11 +31,7 @@ impl<B: ModelCaller> ToolsSession<B> {
         Self { tools, backend: b }
     }
 
-    fn tool_call(
-        &mut self,
-        name: &String,
-        args: String,
-    ) -> Result<ChatMessage, Box<dyn std::error::Error>> {
+    fn tool_call(&mut self, name: &String, args: String) -> Result<ChatMessage, CallErr> {
         for (d, f) in self.tools.iter_mut() {
             if Some(name) == d.function.name.as_ref() {
                 return Ok((*f)(args));
@@ -54,15 +50,30 @@ impl<B: ModelCaller> ModelCaller for ToolsSession<B> {
         &mut self,
         mut messages: Vec<ChatMessage>,
         _tools: Vec<Tool>,
-    ) -> Result<CompletionsResponse, Box<dyn std::error::Error>> {
+    ) -> Result<CompletionsResponse, CallErr> {
+        let mut last_res: Option<CompletionsResponse> = None;
         for _ in 0..MAX_TOOL_ITER {
-            let resp = self
+            let res = self
                 .backend
                 .call(
                     messages.clone(),
                     self.tools.iter().map(|(t, _)| t.clone()).collect(),
                 )
-                .await?;
+                .await;
+
+            let resp = match res {
+                Err(CallErr::NoCompletions) => {
+                    return if let Some(last_res) = last_res {
+                        Ok(last_res)
+                    } else {
+                        Err(CallErr::NoCompletions)
+                    }
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+                Ok(resp) => resp,
+            };
 
             match resp.choices[0].finish_reason {
                 FinishReason::Stop => {
@@ -82,7 +93,7 @@ impl<B: ModelCaller> ModelCaller for ToolsSession<B> {
                                 // m.name = Some(c.function.name.clone());
                                 m
                             })
-                            .map_err(|e| -> Box<dyn std::error::Error> {
+                            .map_err(|e| -> CallErr {
                                 format!("function call failed: {:?}", e).into()
                             })?;
                         messages.push(response_msg);
@@ -90,6 +101,8 @@ impl<B: ModelCaller> ModelCaller for ToolsSession<B> {
                 }
                 _ => unreachable!(),
             }
+
+            last_res = Some(resp);
         }
 
         Err(format!("exceeded max tool iterations: {}", MAX_TOOL_ITER).into())

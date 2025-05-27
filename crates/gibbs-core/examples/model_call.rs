@@ -1,5 +1,5 @@
 use gibbs_core::parse::{markdown_codeblock, MarkdownOptions};
-use gibbs_core::{callers, models, ModelCaller};
+use gibbs_core::{callers, models, CallErr, ModelCaller};
 use serde::Deserialize;
 
 use indoc::indoc;
@@ -12,7 +12,7 @@ pub struct Out {
 type Model = models::Gemma27B3;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), CallErr> {
     let mut backend = callers::Openrouter::<Model>::default();
 
     let resp =
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", resp);
 
     let json = markdown_codeblock(&resp, &MarkdownOptions::json()).unwrap();
-    let p: Out = serde_json_lenient::from_str(&json)?;
+    let p: Out = serde_json_lenient::from_str(&json).expect("json decode");
     println!("json: {:?}", p.roots);
 
     Ok(())

@@ -1,5 +1,5 @@
-use gibbs_core::parse::{markdown_codeblock, MarkdownOptions};
-use gibbs_core::{callers, models, CallErr, ModelCaller};
+use mini_prompt::parse::{markdown_codeblock, MarkdownOptions};
+use mini_prompt::{callers, models, CallErr, ModelCaller};
 use serde::Deserialize;
 
 use indoc::indoc;

@@ -234,19 +234,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gibbs-core"
-version = "0.0.1"
-dependencies = [
- "indoc",
- "markdown",
- "reqwest",
- "serde",
- "serde_json",
- "serde_json_lenient",
- "tokio",
-]
-
-[[package]]
 name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -621,6 +608,19 @@ name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
+
+[[package]]
+name = "mini-prompt"
+version = "0.0.1"
+dependencies = [
+ "indoc",
+ "markdown",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_json_lenient",
+ "tokio",
+]
 
 [[package]]
 name = "miniz_oxide"

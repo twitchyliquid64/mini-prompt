@@ -1,9 +1,9 @@
-use gibbs_core::parse::TagOptions;
-use gibbs_core::{callers, ModelCaller};
 use indoc::indoc;
+use mini_prompt::parse::TagOptions;
+use mini_prompt::{callers, ModelCaller};
 use serde::Deserialize;
 
-type M = gibbs_core::models::Gemini2Flash;
+type M = mini_prompt::models::Gemini2Flash;
 
 const BASE: &str = indoc! {
     "You are an AI assistant chatting with a user. You respond to the user based on their message and background knowledge you are provided with.

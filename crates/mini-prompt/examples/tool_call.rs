@@ -1,5 +1,5 @@
-use gibbs_core::data_model::{ChatMessage, FunctionInfo};
-use gibbs_core::{callers, models, CallErr, ModelCaller, ToolsSession};
+use mini_prompt::data_model::{ChatMessage, FunctionInfo};
+use mini_prompt::{callers, models, CallErr, ModelCaller, ToolsSession};
 
 use indoc::indoc;
 use std::sync::{Arc, Mutex};

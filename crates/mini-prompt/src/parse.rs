@@ -98,7 +98,7 @@ impl<'a> From<&'a [&'a str]> for EnumOptions<'a> {
 /// Extracts a trailing multiclass answer using the given opts as configuration.
 ///
 /// ```
-/// use gibbs_core::parse::multiclass;
+/// use mini_prompt::parse::multiclass;
 /// multiclass("uwu\nanswer: query", &["query", "action"][..].into());
 /// ```
 pub fn multiclass<'a>(text: &str, opts: &'a EnumOptions) -> Option<&'a str> {

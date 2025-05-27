@@ -12,9 +12,14 @@ pub use callers::ModelCaller;
 pub mod tools;
 pub use tools::ToolsSession;
 
+/// Describes an error which occurred during a model call.
 pub enum CallErr {
+    /// The response lacked any completions, which can be non-erroneous for multi-turn contexts
+    /// but is always anomalous in single-turn contexts.
     NoCompletions,
+    /// A network or basic deserialization error occurred.
     API(reqwest::Error),
+    /// Any other error.
     Other(Box<dyn std::error::Error>),
 }
 

@@ -48,6 +48,15 @@ impl ChatMessage {
             name: None,
         }
     }
+    pub fn assistant<S: Into<String>>(s: S) -> Self {
+        ChatMessage {
+            role: MessageRole::Assistant,
+            content: Some(s.into()),
+            tool_calls: vec![],
+            tool_call_id: None,
+            name: None,
+        }
+    }
     pub fn system<S: Into<String>>(s: S) -> Self {
         ChatMessage {
             role: MessageRole::System,
@@ -200,7 +209,7 @@ pub struct CompletionsResponse {
     pub object: Option<String>,
 
     #[serde(default)]
-    pub created: u64,
+    pub created: Option<u64>,
     #[serde(default)]
     pub model: String,
 
@@ -227,8 +236,112 @@ pub struct ChatChoice {
 #[serde(rename_all = "snake_case")]
 pub enum FinishReason {
     #[default]
+    #[serde(alias = "end_turn")]
     Stop,
+    #[serde(alias = "tool_use")]
     ToolCalls,
+    #[serde(alias = "max_tokens")]
     Length,
+    #[serde(alias = "refusal")]
     ContentFilter,
+}
+
+/// A request to the Anthropic messages API.
+#[derive(Debug, Default, Clone, Serialize)]
+pub(crate) struct AnthropicMsgRequest {
+    /// Model identifier to use for completion
+    pub model: String,
+
+    /// Model input and output
+    pub messages: Vec<ChatMessage>,
+
+    /// The system prompt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system: Option<String>,
+
+    /// The maximum number of tokens that can be used.
+    pub max_tokens: usize,
+
+    /// Explicitly enables or disables function calling.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_choice: Option<ToolChoice>,
+
+    /// The list of tools the model can use
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<AnthropicTool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct AnthropicTool {
+    /// The name of the tool which can be called. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
+    pub name: Option<String>,
+    /// A description of what the tool does.
+    pub description: String,
+
+    /// Describes the layout of parameters the function expects.
+    ///
+    /// E.G:
+    /// ```json
+    /// {
+    ///   "type": "object",
+    ///   "properties": {
+    ///     "ticker": {
+    ///       "type": "string",
+    ///       "description": "The stock ticker symbol, e.g. AAPL for Apple Inc."
+    ///     }
+    ///   },
+    ///   "required": ["ticker"]
+    /// }
+    /// ```
+    pub input_schema: serde_json::Value,
+}
+
+impl From<Tool> for AnthropicTool {
+    fn from(tool: Tool) -> Self {
+        Self {
+            name: tool.function.name,
+            description: tool.function.description,
+            input_schema: tool.function.parameters,
+        }
+    }
+}
+
+/// A response from the Anthropic Messages API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct AnthropicMsgResponse {
+    /// Unique ID
+    #[serde(default)]
+    pub id: String,
+
+    /// Object type, always "message"
+    pub object: Option<String>,
+
+    /// Conversational role, always "assistant"
+    pub role: Option<String>,
+
+    #[serde(default)]
+    pub model: String,
+
+    /// Array of model outputs
+    #[serde(default)]
+    pub content: Vec<AnthropicCompletion>,
+
+    /// The reason the model stopped producing tokens
+    pub stop_reason: FinishReason,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub(crate) enum AnthropicCompletion {
+    Text { text: String },
+}
+
+impl AnthropicCompletion {
+    pub(crate) fn text_content(&self) -> Option<&String> {
+        #[allow(unreachable_patterns)]
+        match self {
+            AnthropicCompletion::Text { text } => Some(&text),
+            _ => None,
+        }
+    }
 }

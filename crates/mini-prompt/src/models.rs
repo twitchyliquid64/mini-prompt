@@ -16,6 +16,11 @@ pub trait OpenrouterModel: Model {
     const NO_SYS_PROMPT: bool;
 }
 
+/// An LLM which can be called via the Anthropic public API.
+pub trait AnthropicModel: Model {
+    const MODEL_STR: &'static str;
+}
+
 /// The Gemma3 27b LLM.
 #[derive(Default, Debug, Clone)]
 pub struct Gemma27B3;
@@ -70,7 +75,7 @@ impl OpenrouterModel for DevstralSmall {
     const NO_SYS_PROMPT: bool = false;
 }
 
-// OpenAI's GPT-4o-mini model.
+/// OpenAI's GPT-4o-mini model.
 #[derive(Default, Debug, Clone)]
 pub struct GPT4oMini;
 
@@ -79,7 +84,7 @@ impl OpenrouterModel for GPT4oMini {
     const NO_SYS_PROMPT: bool = false;
 }
 
-// Deepseek v3 0324
+/// Deepseek v3 0324
 #[derive(Default, Debug, Clone)]
 pub struct Deepseek0324v3;
 
@@ -88,13 +93,31 @@ impl OpenrouterModel for Deepseek0324v3 {
     const NO_SYS_PROMPT: bool = false;
 }
 
-// Claude Sonnet 4
+/// Claude Sonnet 4
 #[derive(Default, Debug, Clone)]
 pub struct ClaudeSonnet4;
 
 impl OpenrouterModel for ClaudeSonnet4 {
     const MODEL_STR: &'static str = &"anthropic/claude-sonnet-4";
     const NO_SYS_PROMPT: bool = false;
+}
+
+impl AnthropicModel for ClaudeSonnet4 {
+    const MODEL_STR: &'static str = &"claude-sonnet-4-20250514";
+}
+
+/// Claude Haiku 3.5
+#[derive(Default, Debug, Clone)]
+pub struct ClaudeHaiku35;
+
+impl AnthropicModel for ClaudeHaiku35 {
+    const MODEL_STR: &'static str = &"claude-3-5-haiku-latest";
+}
+
+impl Model for ClaudeHaiku35 {
+    fn make_prompt(&self, prompt: String) -> ChatMessage {
+        ChatMessage::system(prompt)
+    }
 }
 
 impl<X: OpenrouterModel> Model for X {

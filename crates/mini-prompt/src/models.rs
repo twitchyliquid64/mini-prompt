@@ -110,14 +110,13 @@ impl AnthropicModel for ClaudeSonnet4 {
 #[derive(Default, Debug, Clone)]
 pub struct ClaudeHaiku35;
 
-impl AnthropicModel for ClaudeHaiku35 {
-    const MODEL_STR: &'static str = &"claude-3-5-haiku-latest";
+impl OpenrouterModel for ClaudeHaiku35 {
+    const MODEL_STR: &'static str = &"anthropic/claude-3.5-haiku";
+    const NO_SYS_PROMPT: bool = false;
 }
 
-impl Model for ClaudeHaiku35 {
-    fn make_prompt(&self, prompt: String) -> OAIChatMessage {
-        OAIChatMessage::system(prompt)
-    }
+impl AnthropicModel for ClaudeHaiku35 {
+    const MODEL_STR: &'static str = &"claude-3-5-haiku-latest";
 }
 
 impl<X: OpenrouterModel> Model for X {

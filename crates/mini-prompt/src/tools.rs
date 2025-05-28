@@ -73,11 +73,11 @@ impl<B: ModelCaller> ModelCaller for ToolsSession<B> {
 
             match resp.finish_reason {
                 FinishReason::Stop => {
-                    println!("trace: {:?}", turns);
+                    // println!("trace: {:?}", turns);
                     return Ok(resp);
                 }
                 FinishReason::ToolCalls => {
-                    println!("tool call: {:?}", resp.content);
+                    // println!("tool call: {:?}", resp.content);
                     turns.push(resp.content.clone());
 
                     let mut tool_resp = Turn {

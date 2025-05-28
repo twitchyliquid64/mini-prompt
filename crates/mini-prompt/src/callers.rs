@@ -1,5 +1,5 @@
 use crate::data_model::{
-    AnthropicMsgRequest, AnthropicMsgResponse, AnthropicToolChoice, OAIChatMessage,
+    AnthropicMessage, AnthropicMsgRequest, AnthropicMsgResponse, AnthropicToolChoice,
     OAICompletionsRequest, OAICompletionsResponse, OAIToolChoice,
 };
 use crate::models::{AnthropicModel, OpenrouterModel};
@@ -31,8 +31,8 @@ pub trait ModelCaller: Send {
         async {
             let res = self.call(base_params, vec![]).await?;
 
-            match &res.content.content[0] {
-                Message::Text { text } => Ok(text.clone()),
+            match &res.content.content.get(0) {
+                Some(Message::Text { text }) => Ok(text.clone()),
                 _ => Err("unexpected: no message content".into()),
             }
         }
@@ -143,9 +143,9 @@ impl<M: AnthropicModel> ModelCaller for Anthropic<M> {
     async fn call(&mut self, params: CallBase, turns: Vec<Turn>) -> Result<CallResp, CallErr> {
         let mut messages = Vec::new();
         if !params.instructions.is_empty() {
-            messages.push(OAIChatMessage::user(params.instructions));
+            messages.push(AnthropicMessage::user_text(params.instructions));
         }
-        messages.extend(turns.into_iter().map(|t| t.into_oai_msgs()).flatten());
+        messages.extend(turns.into_iter().map(|t| t.into_anthropic_msgs()).flatten());
 
         println!("msgs: {:?}", messages);
 

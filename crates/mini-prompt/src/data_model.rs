@@ -233,7 +233,7 @@ pub(crate) struct AnthropicMsgRequest {
     pub model: String,
 
     /// Model input and output
-    pub messages: Vec<OAIChatMessage>,
+    pub messages: Vec<AnthropicMessage>,
 
     /// The system prompt.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -311,4 +311,46 @@ pub(crate) enum AnthropicCompletion {
         name: String,
         input: serde_json::Value,
     },
+    ToolResult {
+        tool_use_id: String,
+        content: String,
+    },
+}
+
+/// The serialized format representing the output of a turn in an LLM conversation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct AnthropicMessage {
+    /// Role: user, assistant
+    pub role: Role,
+    pub content: Vec<AnthropicCompletion>,
+}
+
+impl AnthropicMessage {
+    pub fn user_text(text: String) -> Self {
+        Self {
+            role: Role::User,
+            content: vec![AnthropicCompletion::Text { text }],
+        }
+    }
+    pub fn assistant_text(text: String) -> Self {
+        Self {
+            role: Role::Assistant,
+            content: vec![AnthropicCompletion::Text { text }],
+        }
+    }
+    pub fn tool_use(id: String, name: String, input: serde_json::Value) -> Self {
+        Self {
+            role: Role::Assistant,
+            content: vec![AnthropicCompletion::ToolUse { id, name, input }],
+        }
+    }
+    pub fn tool_result(id: String, result: String) -> Self {
+        Self {
+            role: Role::User,
+            content: vec![AnthropicCompletion::ToolResult {
+                tool_use_id: id,
+                content: result,
+            }],
+        }
+    }
 }

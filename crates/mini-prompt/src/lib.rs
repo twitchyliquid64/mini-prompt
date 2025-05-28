@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod data_model;
-use crate::data_model::OAIChatMessage;
+use crate::data_model::{AnthropicMessage, OAIChatMessage};
 
 pub mod parse;
 
@@ -217,6 +217,47 @@ impl Turn {
             })
             .collect()
     }
+
+    pub(crate) fn into_anthropic_msgs(self) -> Vec<AnthropicMessage> {
+        use itertools::Itertools;
+        self.content
+            .into_iter()
+            .map(|m| match self.role {
+                Role::User | Role::System => match m {
+                    Message::Text { text } => AnthropicMessage::user_text(text),
+                    _ => unreachable!(),
+                },
+                Role::Assistant => match m {
+                    Message::Text { text } => AnthropicMessage::assistant_text(text),
+                    // These will be combined to one msg during coalesce()
+                    Message::ToolCall {
+                        id,
+                        name,
+                        arguments,
+                    } => AnthropicMessage::tool_use(
+                        id,
+                        name,
+                        serde_json::from_str(&arguments).unwrap(),
+                    ),
+                    _ => unreachable!(),
+                },
+                Role::Tool => match m {
+                    Message::ToolResult { id, result } => AnthropicMessage::tool_result(id, result),
+                    _ => unreachable!(),
+                },
+            })
+            // Combine tool call msgs with earlier Assistant msgs
+            // if there was one, as they are expected together.
+            .coalesce(|mut prev, next| {
+                if prev.role == next.role {
+                    prev.content.extend(next.content);
+                    Ok(prev)
+                } else {
+                    Err((prev, next))
+                }
+            })
+            .collect()
+    }
 }
 /// The context of data in or out of the model.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -270,6 +311,13 @@ impl From<data_model::AnthropicCompletion> for Message {
                 id,
                 name,
                 arguments: input.to_string(),
+            },
+            AnthropicCompletion::ToolResult {
+                tool_use_id,
+                content,
+            } => Message::ToolResult {
+                id: tool_use_id,
+                result: content,
             },
         }
     }

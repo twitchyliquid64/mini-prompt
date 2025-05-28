@@ -3,7 +3,7 @@ use mini_prompt::{callers, models, CallErr, ModelCaller, ToolInfo, ToolsSession}
 use indoc::indoc;
 use std::sync::{Arc, Mutex};
 
-type M = models::Gemini25Flash;
+type M = models::ClaudeHaiku35;
 
 #[tokio::main]
 async fn main() -> Result<(), CallErr> {

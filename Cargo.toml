@@ -11,5 +11,7 @@ serde_json_lenient = { version = "^0.2" }
 
 indoc = "^2.0"
 
+itertools = "0.14"
+
 # our crates
 mini-prompt = { version = "0.0.1", path = "crates/mini-prompt" }

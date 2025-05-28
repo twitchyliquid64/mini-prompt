@@ -162,6 +162,7 @@ impl From<data_model::OAIChatMessage> for Turn {
 
 impl Turn {
     pub(crate) fn into_oai_msgs(self) -> Vec<OAIChatMessage> {
+        use itertools::Itertools;
         self.content
             .into_iter()
             .map(|m| match self.role {
@@ -173,10 +174,26 @@ impl Turn {
                     Message::Text { text } => text,
                     _ => unreachable!(),
                 }),
-                Role::Assistant => OAIChatMessage::assistant(match m {
-                    Message::Text { text } => text,
+                Role::Assistant => match m {
+                    Message::Text { text } => OAIChatMessage::assistant(text),
+                    // These will be combined to one msg during coalesce()
+                    Message::ToolCall {
+                        id,
+                        name,
+                        arguments,
+                    } => OAIChatMessage {
+                        role: Role::Assistant,
+                        content: None,
+                        tool_calls: vec![crate::data_model::OAIToolCall {
+                            id,
+                            r#type: crate::data_model::ToolCallType::Function,
+                            function: crate::data_model::FunctionCall { name, arguments },
+                        }],
+                        tool_call_id: None,
+                        name: None,
+                    },
                     _ => unreachable!(),
-                }),
+                },
                 Role::Tool => match m {
                     Message::ToolResult { id, result } => OAIChatMessage {
                         tool_call_id: Some(id),
@@ -185,32 +202,18 @@ impl Turn {
                     _ => unreachable!(),
                 },
             })
-            .collect()
-    }
-
-    pub(crate) fn into_anthropic_msgs(self) -> Vec<OAIChatMessage> {
-        self.content
-            .into_iter()
-            .map(|m| match self.role {
-                Role::User => OAIChatMessage::user(match m {
-                    Message::Text { text } => text,
-                    _ => unreachable!(),
-                }),
-                Role::System => OAIChatMessage::system(match m {
-                    Message::Text { text } => text,
-                    _ => unreachable!(),
-                }),
-                Role::Assistant => OAIChatMessage::assistant(match m {
-                    Message::Text { text } => text,
-                    _ => unreachable!(),
-                }),
-                Role::Tool => match m {
-                    Message::ToolResult { id, result } => OAIChatMessage {
-                        tool_call_id: Some(id),
-                        ..OAIChatMessage::tool(result)
-                    },
-                    _ => unreachable!(),
-                },
+            // Combine tool call msgs with earlier Assistant msgs
+            // if there was one, as they are expected together.
+            .coalesce(|mut prev, next| {
+                if prev.role == Role::Assistant
+                    && next.role == Role::Assistant
+                    && next.content.is_none()
+                {
+                    prev.tool_calls.extend(next.tool_calls);
+                    Ok(prev)
+                } else {
+                    Err((prev, next))
+                }
             })
             .collect()
     }
@@ -263,6 +266,11 @@ impl From<data_model::AnthropicCompletion> for Message {
         use data_model::AnthropicCompletion;
         match msg {
             AnthropicCompletion::Text { text } => Message::Text { text },
+            AnthropicCompletion::ToolUse { id, name, input } => Message::ToolCall {
+                id,
+                name,
+                arguments: input.to_string(),
+            },
         }
     }
 }

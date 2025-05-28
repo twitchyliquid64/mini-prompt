@@ -77,8 +77,7 @@ impl<B: ModelCaller> ModelCaller for ToolsSession<B> {
                     return Ok(resp);
                 }
                 FinishReason::ToolCalls => {
-                    let msg = &resp.content.content[0];
-                    println!("tool call: {:?}", msg);
+                    println!("tool call: {:?}", resp.content);
                     turns.push(resp.content.clone());
 
                     let mut tool_resp = Turn {
@@ -101,6 +100,7 @@ impl<B: ModelCaller> ModelCaller for ToolsSession<B> {
                                 })?;
                         tool_resp.content.push(response_msg);
                     }
+                    turns.push(tool_resp);
                 }
                 _ => unreachable!(),
             }

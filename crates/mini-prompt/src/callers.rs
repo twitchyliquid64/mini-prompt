@@ -1,6 +1,6 @@
 use crate::data_model::{
-    AnthropicMsgRequest, AnthropicMsgResponse, OAIChatMessage, OAICompletionsRequest,
-    OAICompletionsResponse, ToolChoice,
+    AnthropicMsgRequest, AnthropicMsgResponse, AnthropicToolChoice, OAIChatMessage,
+    OAICompletionsRequest, OAICompletionsResponse, OAIToolChoice,
 };
 use crate::models::{AnthropicModel, OpenrouterModel};
 use crate::{CallBase, CallErr, CallResp, FinishReason, Message, Model, Turn};
@@ -84,7 +84,7 @@ impl<M: OpenrouterModel> ModelCaller for Openrouter<M> {
                 tool_choice: if params.tools.is_empty() {
                     None
                 } else {
-                    Some(ToolChoice::Auto)
+                    Some(OAIToolChoice::Auto)
                 },
                 tools: params.tools.into_iter().map(|td| td.into()).collect(),
                 ..Default::default()
@@ -92,8 +92,11 @@ impl<M: OpenrouterModel> ModelCaller for Openrouter<M> {
             .send()
             .await?;
 
-        // println!("res: {:?}", resp);
-        // panic!("body: {:?}", resp.text().await?);
+        // TODO: Dont panic, propergate back as error
+        if !resp.status().is_success() {
+            println!("res: {:?}", resp);
+            panic!("body: {:?}", resp.text().await?);
+        }
 
         let mut res = resp.json::<OAICompletionsResponse>().await?;
 
@@ -142,7 +145,9 @@ impl<M: AnthropicModel> ModelCaller for Anthropic<M> {
         if !params.instructions.is_empty() {
             messages.push(OAIChatMessage::user(params.instructions));
         }
-        messages.extend(turns.into_iter().map(|t| t.into_anthropic_msgs()).flatten());
+        messages.extend(turns.into_iter().map(|t| t.into_oai_msgs()).flatten());
+
+        println!("msgs: {:?}", messages);
 
         let client = Client::new();
         let resp = client
@@ -167,7 +172,10 @@ impl<M: AnthropicModel> ModelCaller for Anthropic<M> {
                 tool_choice: if params.tools.is_empty() {
                     None
                 } else {
-                    Some(ToolChoice::Auto)
+                    Some(AnthropicToolChoice {
+                        r#type: OAIToolChoice::Auto,
+                        ..Default::default()
+                    })
                 },
                 tools: params.tools.into_iter().map(|td| td.into()).collect(),
                 ..Default::default()
@@ -175,8 +183,11 @@ impl<M: AnthropicModel> ModelCaller for Anthropic<M> {
             .send()
             .await?;
 
-        // println!("res: {:?}", resp);
-        // panic!("body: {:?}", resp.text().await?);
+        // TODO: Dont panic, propergate back as error
+        if !resp.status().is_success() {
+            println!("res: {:?}", resp);
+            panic!("body: {:?}", resp.text().await?);
+        }
 
         let mut res = resp.json::<AnthropicMsgResponse>().await?;
 

@@ -1,10 +1,9 @@
-use mini_prompt::data_model::{FunctionInfo, OAIChatMessage};
-use mini_prompt::{callers, models, CallErr, ModelCaller, ToolsSession};
+use mini_prompt::{callers, models, CallErr, ModelCaller, ToolInfo, ToolsSession};
 
 use indoc::indoc;
 use std::sync::{Arc, Mutex};
 
-type M = models::ClaudeSonnet4;
+type M = models::Gemini25Flash;
 
 #[tokio::main]
 async fn main() -> Result<(), CallErr> {
@@ -18,18 +17,16 @@ async fn main() -> Result<(), CallErr> {
             backend,
             vec![
                 (
-                    FunctionInfo::new("flubb", "Performs the flubb action.", None).into(),
+                    ToolInfo::new("flubb", "Performs the flubb action.", None).into(),
                     Box::new(move |_args| {
                         (*(*flubb_ref).lock().unwrap()) += 1;
-                        OAIChatMessage::tool(
-                            r#"{"status": "success", "message": "flubb completed successfully"}"#,
-                        )
+                        r#"{"status": "success", "message": "flubb completed successfully"}"#
+                            .to_string()
                     }),
                 ),
                 (
-                    FunctionInfo::new("finish", "Finishes up; terminating the session.", None)
-                        .into(),
-                    Box::new(move |_args| OAIChatMessage::tool("finished successfully.")),
+                    ToolInfo::new("finish", "Finishes up; terminating the session.", None).into(),
+                    Box::new(move |_args| "finished successfully.".to_string()),
                 ),
             ],
         );

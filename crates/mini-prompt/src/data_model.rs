@@ -146,7 +146,7 @@ impl FunctionInfo {
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
-pub enum ToolChoice {
+pub enum OAIToolChoice {
     #[default]
     None,
     Auto,
@@ -170,7 +170,7 @@ pub(crate) struct OAICompletionsRequest {
 
     /// Explicitly enables or disables function calling.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_choice: Option<ToolChoice>,
+    pub tool_choice: Option<OAIToolChoice>,
 }
 
 impl Default for OAICompletionsRequest {
@@ -219,6 +219,13 @@ pub struct ChatChoice {
     pub finish_reason: FinishReason,
 }
 
+/// Describes preferences around tool use to Anthropic.
+#[derive(Debug, Default, Clone, Serialize)]
+pub(crate) struct AnthropicToolChoice {
+    pub r#type: OAIToolChoice,
+    pub disable_parallel_tool_use: bool,
+}
+
 /// A request to the Anthropic messages API.
 #[derive(Debug, Default, Clone, Serialize)]
 pub(crate) struct AnthropicMsgRequest {
@@ -237,7 +244,7 @@ pub(crate) struct AnthropicMsgRequest {
 
     /// Explicitly enables or disables function calling.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_choice: Option<ToolChoice>,
+    pub tool_choice: Option<AnthropicToolChoice>,
 
     /// The list of tools the model can use
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -296,5 +303,12 @@ pub(crate) struct AnthropicMsgResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum AnthropicCompletion {
-    Text { text: String },
+    Text {
+        text: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        input: serde_json::Value,
+    },
 }

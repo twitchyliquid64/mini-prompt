@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
+
 pub mod data_model;
-use crate::data_model::{ChatMessage, CompletionsRequest, CompletionsResponse, Tool};
+use crate::data_model::OAIChatMessage;
 
 pub mod parse;
 
@@ -21,6 +23,7 @@ pub enum CallErr {
     API(reqwest::Error),
     /// Any other error.
     Other(Box<dyn std::error::Error>),
+    ToolFailed(String, String),
 }
 
 impl std::fmt::Debug for CallErr {
@@ -29,6 +32,9 @@ impl std::fmt::Debug for CallErr {
             CallErr::NoCompletions => write!(f, "NoCompletions"),
             CallErr::API(err) => f.debug_tuple("API").field(err).finish(),
             CallErr::Other(err) => f.debug_tuple("Other").field(err).finish(),
+            CallErr::ToolFailed(name, err) => {
+                f.debug_tuple("ToolFailed").field(name).field(err).finish()
+            }
         }
     }
 }
@@ -48,6 +54,268 @@ impl From<String> for CallErr {
 impl From<reqwest::Error> for CallErr {
     fn from(inp: reqwest::Error) -> Self {
         CallErr::API(inp)
+    }
+}
+
+/// Describes the parameters and use of a tool made available to an LLM.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ToolInfo {
+    /// The name of the function to be called. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
+    name: String,
+    /// A description of what the function does.
+    description: String,
+    /// The parameters the functions accepts, described as a JSON Schema object. See the guide for examples, and the JSON Schema reference for documentation about the format.
+    /// To describe a function that accepts no parameters, provide the value {"type": "object", "properties": {}}.
+    pub parameters: serde_json::Value,
+}
+
+impl ToolInfo {
+    pub fn new<S: Into<String>>(
+        name: S,
+        description: S,
+        parameters: Option<serde_json::Value>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            description: description.into(),
+            parameters: match parameters {
+                Some(p) => p,
+                None => serde_json::json!({"type": "object", "properties": {}}),
+            },
+        }
+    }
+}
+
+impl From<ToolInfo> for data_model::OAITool {
+    fn from(ti: ToolInfo) -> data_model::OAITool {
+        data_model::OAITool {
+            r#type: "function".into(),
+            function: data_model::FunctionInfo {
+                name: Some(ti.name),
+                description: ti.description,
+                parameters: ti.parameters,
+            },
+        }
+    }
+}
+
+impl From<ToolInfo> for data_model::AnthropicTool {
+    fn from(ti: ToolInfo) -> data_model::AnthropicTool {
+        data_model::AnthropicTool {
+            name: Some(ti.name),
+            description: ti.description,
+            input_schema: ti.parameters,
+        }
+    }
+}
+
+/// The basic parameters for a (possibly multi-turn) model call.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CallBase {
+    /// Short-form information describing the persona of the LLM.
+    pub system: String,
+    /// Task-specific instructions for the LLM.
+    pub instructions: String,
+    /// Descriptions of tools that may be used
+    pub tools: Vec<ToolInfo>,
+
+    pub temperature: f32,
+    pub max_tokens: usize,
+}
+
+impl Default for CallBase {
+    fn default() -> Self {
+        Self {
+            system: "".to_string(),
+            instructions: "".to_string(),
+            tools: vec![],
+
+            temperature: 1.0,
+            max_tokens: 8192,
+        }
+    }
+}
+
+/// Describes a round of model input or output.
+#[derive(Debug, Default, Clone)]
+pub struct Turn {
+    pub role: Role,
+    pub content: Vec<Message>,
+}
+
+impl From<data_model::OAIChatMessage> for Turn {
+    fn from(resp: data_model::OAIChatMessage) -> Self {
+        let mut msgs = Vec::with_capacity(1 + resp.tool_calls.len());
+        if let Some(text) = resp.content {
+            msgs.push(Message::Text { text });
+        }
+        resp.tool_calls
+            .into_iter()
+            .for_each(|tc| msgs.push(tc.into()));
+
+        Self {
+            role: resp.role,
+            content: msgs,
+        }
+    }
+}
+
+impl Turn {
+    pub(crate) fn into_oai_msgs(self) -> Vec<OAIChatMessage> {
+        self.content
+            .into_iter()
+            .map(|m| match self.role {
+                Role::User => OAIChatMessage::user(match m {
+                    Message::Text { text } => text,
+                    _ => unreachable!(),
+                }),
+                Role::System => OAIChatMessage::system(match m {
+                    Message::Text { text } => text,
+                    _ => unreachable!(),
+                }),
+                Role::Assistant => OAIChatMessage::assistant(match m {
+                    Message::Text { text } => text,
+                    _ => unreachable!(),
+                }),
+                Role::Tool => match m {
+                    Message::ToolResult { id, result } => OAIChatMessage {
+                        tool_call_id: Some(id),
+                        ..OAIChatMessage::tool(result)
+                    },
+                    _ => unreachable!(),
+                },
+            })
+            .collect()
+    }
+
+    pub(crate) fn into_anthropic_msgs(self) -> Vec<OAIChatMessage> {
+        self.content
+            .into_iter()
+            .map(|m| match self.role {
+                Role::User => OAIChatMessage::user(match m {
+                    Message::Text { text } => text,
+                    _ => unreachable!(),
+                }),
+                Role::System => OAIChatMessage::system(match m {
+                    Message::Text { text } => text,
+                    _ => unreachable!(),
+                }),
+                Role::Assistant => OAIChatMessage::assistant(match m {
+                    Message::Text { text } => text,
+                    _ => unreachable!(),
+                }),
+                Role::Tool => match m {
+                    Message::ToolResult { id, result } => OAIChatMessage {
+                        tool_call_id: Some(id),
+                        ..OAIChatMessage::tool(result)
+                    },
+                    _ => unreachable!(),
+                },
+            })
+            .collect()
+    }
+}
+/// The context of data in or out of the model.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Role {
+    /// Data in this turn represents user (non-LLM) input.
+    #[default]
+    User,
+    /// Data in this turn represents the system prompt.
+    System,
+    /// Data in this turn was generated by the LLM.
+    Assistant,
+    /// Data in this turn represents the result of a tool call.
+    Tool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+/// A unit of data written or read from the model.
+pub enum Message {
+    Text {
+        text: String,
+    },
+    ToolCall {
+        id: String,
+        name: String,
+        arguments: String,
+    },
+    ToolResult {
+        id: String,
+        result: String,
+    },
+}
+
+impl From<data_model::OAIToolCall> for Message {
+    fn from(tc: data_model::OAIToolCall) -> Self {
+        Self::ToolCall {
+            id: tc.id,
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+        }
+    }
+}
+
+impl From<data_model::AnthropicCompletion> for Message {
+    fn from(msg: data_model::AnthropicCompletion) -> Self {
+        use data_model::AnthropicCompletion;
+        match msg {
+            AnthropicCompletion::Text { text } => Message::Text { text },
+        }
+    }
+}
+
+/// Describes the reason a model stopped providing tokens.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum FinishReason {
+    #[default]
+    #[serde(alias = "end_turn")]
+    Stop,
+    #[serde(alias = "tool_use")]
+    ToolCalls,
+    #[serde(alias = "max_tokens")]
+    Length,
+    #[serde(alias = "refusal")]
+    ContentFilter,
+}
+
+/// The response from the model for generating a single turn.
+#[derive(Debug, Clone)]
+pub struct CallResp {
+    pub id: String,
+    pub model: String,
+
+    pub finish_reason: FinishReason,
+    pub content: Turn,
+}
+
+impl From<data_model::OAICompletionsResponse> for CallResp {
+    fn from(resp: data_model::OAICompletionsResponse) -> Self {
+        let finish_reason = resp.choices[0].finish_reason.clone();
+
+        Self {
+            id: resp.id,
+            model: resp.model,
+            finish_reason,
+            content: resp.choices[0].message.clone().into(),
+        }
+    }
+}
+
+impl From<data_model::AnthropicMsgResponse> for CallResp {
+    fn from(resp: data_model::AnthropicMsgResponse) -> Self {
+        Self {
+            id: resp.id,
+            model: resp.model,
+            finish_reason: resp.stop_reason,
+            content: Turn {
+                role: Role::Assistant,
+                content: resp.content.into_iter().map(|m| m.into()).collect(),
+            },
+        }
     }
 }
 

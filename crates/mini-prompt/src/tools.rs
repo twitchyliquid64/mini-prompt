@@ -1,9 +1,10 @@
-use crate::data_model::{FinishReason, MessageRole};
-use crate::{CallErr, ChatMessage, CompletionsResponse, Model, ModelCaller, Tool};
+use crate::{
+    CallBase, CallErr, CallResp, FinishReason, Message, Model, ModelCaller, Role, ToolInfo, Turn,
+};
 
 const MAX_TOOL_ITER: usize = 12;
 
-pub type RawToolFunc = Box<dyn FnMut(String) -> ChatMessage + Send + Sync>;
+pub type RawToolFunc = Box<dyn FnMut(String) -> String + Send + Sync>;
 
 // /// A collection of tools a model can use.
 // pub trait Toolbox: Send {
@@ -13,7 +14,7 @@ pub type RawToolFunc = Box<dyn FnMut(String) -> ChatMessage + Send + Sync>;
 //         &mut self,
 //         name: &str,
 //         args: String,
-//     ) -> impl std::future::Future<Output = Result<ChatMessage, ()>> + Send;
+//     ) -> impl std::future::Future<Output = Result<OAIChatMessage, ()>> + Send;
 // }
 
 /// A model call which has access to tools.
@@ -21,19 +22,19 @@ pub type RawToolFunc = Box<dyn FnMut(String) -> ChatMessage + Send + Sync>;
 /// This type implements [ModelCaller], but any tools provided during invocation will
 /// be ignored in favor of the tools provided when creating the [ToolsSession].
 pub struct ToolsSession<B: ModelCaller> {
-    tools: Vec<(Tool, RawToolFunc)>,
+    tools: Vec<(ToolInfo, RawToolFunc)>,
     backend: B,
 }
 
 impl<B: ModelCaller> ToolsSession<B> {
     /// Constructs a new [ToolsSession] with the given backend and tools.
-    pub fn new(b: B, tools: Vec<(Tool, RawToolFunc)>) -> Self {
+    pub fn new(b: B, tools: Vec<(ToolInfo, RawToolFunc)>) -> Self {
         Self { tools, backend: b }
     }
 
-    fn tool_call(&mut self, name: &String, args: String) -> Result<ChatMessage, CallErr> {
+    fn tool_call(&mut self, name: &String, args: String) -> Result<String, CallErr> {
         for (d, f) in self.tools.iter_mut() {
-            if Some(name) == d.function.name.as_ref() {
+            if name == &d.name {
                 return Ok((*f)(args));
             }
         }
@@ -46,20 +47,15 @@ impl<B: ModelCaller> ModelCaller for ToolsSession<B> {
         self.backend.get_model()
     }
 
-    async fn call(
-        &mut self,
-        mut messages: Vec<ChatMessage>,
-        _tools: Vec<Tool>,
-    ) -> Result<CompletionsResponse, CallErr> {
-        let mut last_res: Option<CompletionsResponse> = None;
+    async fn call(&mut self, params: CallBase, mut turns: Vec<Turn>) -> Result<CallResp, CallErr> {
+        let params = CallBase {
+            tools: self.tools.iter().map(|(td, _)| td.clone()).collect(),
+            ..params
+        };
+
+        let mut last_res: Option<CallResp> = None;
         for _ in 0..MAX_TOOL_ITER {
-            let res = self
-                .backend
-                .call(
-                    messages.clone(),
-                    self.tools.iter().map(|(t, _)| t.clone()).collect(),
-                )
-                .await;
+            let res = self.backend.call(params.clone(), turns.clone()).await;
 
             let resp = match res {
                 Err(CallErr::NoCompletions) => {
@@ -75,28 +71,35 @@ impl<B: ModelCaller> ModelCaller for ToolsSession<B> {
                 Ok(resp) => resp,
             };
 
-            match resp.choices[0].finish_reason {
+            match resp.finish_reason {
                 FinishReason::Stop => {
-                    println!("trace: {:?}", messages);
+                    println!("trace: {:?}", turns);
                     return Ok(resp);
                 }
                 FinishReason::ToolCalls => {
-                    println!("tool call: {:?}", &resp.choices[0].message);
-                    messages.push(resp.choices[0].message.clone());
+                    let msg = &resp.content.content[0];
+                    println!("tool call: {:?}", msg);
+                    turns.push(resp.content.clone());
 
-                    for c in resp.choices[0].message.tool_calls.iter() {
-                        let response_msg = self
-                            .tool_call(&c.function.name, c.function.arguments.clone())
-                            .map(|mut m| {
-                                m.role = MessageRole::Tool;
-                                m.tool_call_id = Some(c.id.clone());
-                                // m.name = Some(c.function.name.clone());
-                                m
-                            })
-                            .map_err(|e| -> CallErr {
-                                format!("function call failed: {:?}", e).into()
-                            })?;
-                        messages.push(response_msg);
+                    let mut tool_resp = Turn {
+                        role: Role::Tool,
+                        content: vec![],
+                    };
+                    for (id, name, args) in resp.content.content.iter().filter_map(|m| match m {
+                        Message::ToolCall {
+                            id,
+                            name,
+                            arguments,
+                        } => Some((id, name, arguments)),
+                        _ => None,
+                    }) {
+                        let response_msg =
+                            self.tool_call(&name, args.clone())
+                                .map(|m| Message::ToolResult {
+                                    id: id.clone(),
+                                    result: m,
+                                })?;
+                        tool_resp.content.push(response_msg);
                     }
                 }
                 _ => unreachable!(),

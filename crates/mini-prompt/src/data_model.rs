@@ -1,23 +1,13 @@
 //! Wire-format types to use when driving LLM APIs.
 
+use crate::{FinishReason, Role};
 use serde::{Deserialize, Serialize};
-
-/// Describes the source of a chat message.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum MessageRole {
-    System,
-    #[default]
-    User,
-    Assistant,
-    Tool,
-}
 
 /// The serialized format representing the output of a turn in an LLM conversation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatMessage {
+pub struct OAIChatMessage {
     /// Role: system, user, assistant, tool
-    pub role: MessageRole,
+    pub role: Role,
 
     /// Content of the message, optional when using tool calls
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -27,7 +17,7 @@ pub struct ChatMessage {
     ///
     /// Typically invoked from a model: i.e. role == `assistant`
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub tool_calls: Vec<ToolCall>,
+    pub tool_calls: Vec<OAIToolCall>,
 
     /// Tool call that this message is responding to.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -38,10 +28,10 @@ pub struct ChatMessage {
     pub name: Option<String>,
 }
 
-impl ChatMessage {
+impl OAIChatMessage {
     pub fn user<S: Into<String>>(s: S) -> Self {
-        ChatMessage {
-            role: MessageRole::User,
+        OAIChatMessage {
+            role: Role::User,
             content: Some(s.into()),
             tool_calls: vec![],
             tool_call_id: None,
@@ -49,8 +39,8 @@ impl ChatMessage {
         }
     }
     pub fn assistant<S: Into<String>>(s: S) -> Self {
-        ChatMessage {
-            role: MessageRole::Assistant,
+        OAIChatMessage {
+            role: Role::Assistant,
             content: Some(s.into()),
             tool_calls: vec![],
             tool_call_id: None,
@@ -58,8 +48,8 @@ impl ChatMessage {
         }
     }
     pub fn system<S: Into<String>>(s: S) -> Self {
-        ChatMessage {
-            role: MessageRole::System,
+        OAIChatMessage {
+            role: Role::System,
             content: Some(s.into()),
             tool_calls: vec![],
             tool_call_id: None,
@@ -67,8 +57,8 @@ impl ChatMessage {
         }
     }
     pub fn tool<S: Into<String>>(s: S) -> Self {
-        ChatMessage {
-            role: MessageRole::Tool,
+        OAIChatMessage {
+            role: Role::Tool,
             content: Some(s.into()),
             tool_calls: vec![],
             tool_call_id: None,
@@ -79,7 +69,7 @@ impl ChatMessage {
 
 /// Describes an invocation of some tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolCall {
+pub struct OAIToolCall {
     /// The ID of the tool call.
     pub id: String,
     /// The type of the tool, must be `function`.
@@ -110,15 +100,15 @@ pub(crate) struct OpenrouterProvider {
 
 /// Describes a tool available in a model call.
 #[derive(Clone, Debug, Serialize)]
-pub struct Tool {
+pub struct OAITool {
     /// Must be `function`
     pub r#type: String,
     pub function: FunctionInfo,
 }
 
-impl From<FunctionInfo> for Tool {
+impl From<FunctionInfo> for OAITool {
     fn from(fi: FunctionInfo) -> Self {
-        Tool {
+        Self {
             r#type: "function".into(),
             function: fi,
         }
@@ -164,26 +154,26 @@ pub enum ToolChoice {
 
 /// A request to the OpenAI Chat Completions API.
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct CompletionsRequest {
+pub(crate) struct OAICompletionsRequest {
     /// Model identifier to use for completion
     pub model: String,
 
     /// Openrouter-specific parameter.
-    pub provider: OpenrouterProvider,
+    pub provider: Option<OpenrouterProvider>,
 
     /// Model input and output
-    pub messages: Vec<ChatMessage>,
+    pub messages: Vec<OAIChatMessage>,
 
     /// The list of tools the model can use
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub tools: Vec<Tool>,
+    pub tools: Vec<OAITool>,
 
     /// Explicitly enables or disables function calling.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<ToolChoice>,
 }
 
-impl Default for CompletionsRequest {
+impl Default for OAICompletionsRequest {
     fn default() -> Self {
         Self {
             model: <crate::models::Gemma27B3 as crate::models::OpenrouterModel>::MODEL_STR
@@ -191,16 +181,14 @@ impl Default for CompletionsRequest {
             messages: vec![],
             tools: vec![],
             tool_choice: None,
-            provider: OpenrouterProvider {
-                ignore: vec!["Nebius".into(), "Kluster".into(), "DeepInfra".into()],
-            },
+            provider: None,
         }
     }
 }
 
 /// A response from the OpenAI Completions API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompletionsResponse {
+pub struct OAICompletionsResponse {
     /// Unique ID
     #[serde(default)]
     pub id: String,
@@ -225,25 +213,10 @@ pub struct ChatChoice {
     pub index: usize,
 
     /// The message generated by the model
-    pub message: ChatMessage,
+    pub message: OAIChatMessage,
 
     /// Reason why the model stopped generating
     pub finish_reason: FinishReason,
-}
-
-/// Describes the reason a model stopped providing tokens.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum FinishReason {
-    #[default]
-    #[serde(alias = "end_turn")]
-    Stop,
-    #[serde(alias = "tool_use")]
-    ToolCalls,
-    #[serde(alias = "max_tokens")]
-    Length,
-    #[serde(alias = "refusal")]
-    ContentFilter,
 }
 
 /// A request to the Anthropic messages API.
@@ -253,7 +226,7 @@ pub(crate) struct AnthropicMsgRequest {
     pub model: String,
 
     /// Model input and output
-    pub messages: Vec<ChatMessage>,
+    pub messages: Vec<OAIChatMessage>,
 
     /// The system prompt.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -296,16 +269,6 @@ pub(crate) struct AnthropicTool {
     pub input_schema: serde_json::Value,
 }
 
-impl From<Tool> for AnthropicTool {
-    fn from(tool: Tool) -> Self {
-        Self {
-            name: tool.function.name,
-            description: tool.function.description,
-            input_schema: tool.function.parameters,
-        }
-    }
-}
-
 /// A response from the Anthropic Messages API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct AnthropicMsgResponse {
@@ -334,14 +297,4 @@ pub(crate) struct AnthropicMsgResponse {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum AnthropicCompletion {
     Text { text: String },
-}
-
-impl AnthropicCompletion {
-    pub(crate) fn text_content(&self) -> Option<&String> {
-        #[allow(unreachable_patterns)]
-        match self {
-            AnthropicCompletion::Text { text } => Some(&text),
-            _ => None,
-        }
-    }
 }

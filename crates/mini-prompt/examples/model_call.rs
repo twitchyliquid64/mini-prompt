@@ -9,11 +9,11 @@ pub struct Out {
     roots: Vec<f64>,
 }
 
-type Model = models::ClaudeHaiku35;
+type Model = models::Gemma27B3;
 
 #[tokio::main]
 async fn main() -> Result<(), CallErr> {
-    let mut backend = callers::Anthropic::<Model>::default();
+    let mut backend = callers::Openrouter::<Model>::default();
 
     let resp =
         backend.simple_call(indoc! {

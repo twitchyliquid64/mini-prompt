@@ -1,4 +1,4 @@
-use mini_prompt::data_model::{ChatMessage, FunctionInfo};
+use mini_prompt::data_model::{FunctionInfo, OAIChatMessage};
 use mini_prompt::{callers, models, CallErr, ModelCaller, ToolsSession};
 
 use indoc::indoc;
@@ -21,7 +21,7 @@ async fn main() -> Result<(), CallErr> {
                     FunctionInfo::new("flubb", "Performs the flubb action.", None).into(),
                     Box::new(move |_args| {
                         (*(*flubb_ref).lock().unwrap()) += 1;
-                        ChatMessage::tool(
+                        OAIChatMessage::tool(
                             r#"{"status": "success", "message": "flubb completed successfully"}"#,
                         )
                     }),
@@ -29,7 +29,7 @@ async fn main() -> Result<(), CallErr> {
                 (
                     FunctionInfo::new("finish", "Finishes up; terminating the session.", None)
                         .into(),
-                    Box::new(move |_args| ChatMessage::tool("finished successfully.")),
+                    Box::new(move |_args| OAIChatMessage::tool("finished successfully.")),
                 ),
             ],
         );

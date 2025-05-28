@@ -1,13 +1,13 @@
 //! Types representing the different LLMs which can be used.
 
-use crate::ChatMessage;
+use crate::OAIChatMessage;
 
 /// Some specific LLM.
 pub trait Model: Send + Default {
     /// Takes a 'system' prompt, formatting it into a message to be used in a model call.
     ///
     /// This is only needed because some models don't understand the system role.
-    fn make_prompt(&self, prompt: String) -> ChatMessage;
+    fn make_prompt(&self, prompt: String) -> OAIChatMessage;
 }
 
 /// An LLM which can be called via Openrouter.
@@ -115,17 +115,17 @@ impl AnthropicModel for ClaudeHaiku35 {
 }
 
 impl Model for ClaudeHaiku35 {
-    fn make_prompt(&self, prompt: String) -> ChatMessage {
-        ChatMessage::system(prompt)
+    fn make_prompt(&self, prompt: String) -> OAIChatMessage {
+        OAIChatMessage::system(prompt)
     }
 }
 
 impl<X: OpenrouterModel> Model for X {
-    fn make_prompt(&self, prompt: String) -> ChatMessage {
+    fn make_prompt(&self, prompt: String) -> OAIChatMessage {
         if X::NO_SYS_PROMPT {
-            ChatMessage::user(prompt)
+            OAIChatMessage::user(prompt)
         } else {
-            ChatMessage::system(prompt)
+            OAIChatMessage::system(prompt)
         }
     }
 }

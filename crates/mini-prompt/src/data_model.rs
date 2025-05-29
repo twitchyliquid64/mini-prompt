@@ -171,6 +171,8 @@ pub(crate) struct OAICompletionsRequest {
     /// Explicitly enables or disables function calling.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<OAIToolChoice>,
+
+    pub temperature: Option<f32>,
 }
 
 impl Default for OAICompletionsRequest {
@@ -182,6 +184,7 @@ impl Default for OAICompletionsRequest {
             tools: vec![],
             tool_choice: None,
             provider: None,
+            temperature: None,
         }
     }
 }
@@ -249,6 +252,8 @@ pub(crate) struct AnthropicMsgRequest {
     /// The list of tools the model can use
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<AnthropicTool>,
+
+    pub temperature: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

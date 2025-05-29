@@ -77,6 +77,7 @@ impl<M: OpenrouterModel> ModelCaller for Openrouter<M> {
             }))
             .json(&OAICompletionsRequest {
                 model: M::MODEL_STR.into(),
+                temperature: params.temperature,
                 provider: Some(crate::data_model::OpenrouterProvider {
                     ignore: vec!["Nebius".into(), "Kluster".into(), "DeepInfra".into()],
                 }),
@@ -162,6 +163,7 @@ impl<M: AnthropicModel> ModelCaller for Anthropic<M> {
             )
             .json(&AnthropicMsgRequest {
                 model: M::MODEL_STR.into(),
+                temperature: params.temperature,
                 max_tokens: self.max_tokens.unwrap_or(8192),
                 messages,
                 system: if params.system == "" {

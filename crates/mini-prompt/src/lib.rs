@@ -119,7 +119,7 @@ pub struct CallBase {
     /// Descriptions of tools that may be used
     pub tools: Vec<ToolInfo>,
 
-    pub temperature: f32,
+    pub temperature: Option<f32>,
     pub max_tokens: usize,
 }
 
@@ -130,7 +130,7 @@ impl Default for CallBase {
             instructions: "".to_string(),
             tools: vec![],
 
-            temperature: 1.0,
+            temperature: None,
             max_tokens: 8192,
         }
     }

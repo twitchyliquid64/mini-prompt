@@ -85,7 +85,7 @@ pub enum ToolCallType {
     Function,
 }
 
-/// Describes the invocation of some function, typically 1:1 within a [ToolCall].
+/// Describes the invocation of some function, typically 1:1 within a [OAIToolCall].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FunctionCall {
     pub name: String,

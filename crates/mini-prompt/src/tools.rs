@@ -1,5 +1,6 @@
+use crate::models::Model;
 use crate::{
-    CallBase, CallErr, CallResp, FinishReason, Message, Model, ModelCaller, Role, ToolInfo, Turn,
+    CallBase, CallErr, CallResp, FinishReason, Message, ModelCaller, Role, ToolInfo, Turn,
 };
 
 const MAX_TOOL_ITER: usize = 12;

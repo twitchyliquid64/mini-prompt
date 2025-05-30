@@ -2,17 +2,18 @@ use crate::data_model::{
     AnthropicMessage, AnthropicMsgRequest, AnthropicMsgResponse, AnthropicToolChoice,
     OAICompletionsRequest, OAICompletionsResponse, OAIToolChoice,
 };
-use crate::models::{AnthropicModel, OpenrouterModel};
-use crate::{CallBase, CallErr, CallResp, FinishReason, Message, Model, Turn};
+use crate::models::{AnthropicModel, Model, OpenrouterModel};
+use crate::{CallBase, CallErr, CallResp, FinishReason, Message, Turn};
 use reqwest::Client;
 use std::env;
 
 /// A type which is able to make model calls.
 pub trait ModelCaller: Send {
-    /// Returns information about the model this backend is wired to.
+    /// Returns information about the model this caller is wired to.
     fn get_model(&self) -> impl Model;
 
-    /// Implements one model call to complete a turn in an LLM conversation. The workhorse of this trait.
+    /// Performs a model call, returning the response from the model. This method
+    /// is the workhorse of this trait.
     fn call(
         &mut self,
         params: CallBase,
@@ -55,6 +56,8 @@ impl<M: OpenrouterModel> ModelCaller for Openrouter<M> {
     }
 
     async fn call(&mut self, params: CallBase, turns: Vec<Turn>) -> Result<CallResp, CallErr> {
+        // Map `system` and `instructions` into one text stanza, as expected by
+        // this API.
         let system_prompt = match (params.system != "", params.instructions != "") {
             (true, true) => Some((params.system + "\n\n" + &params.instructions).into()),
             (false, true) => Some(params.instructions.clone()),
@@ -63,7 +66,7 @@ impl<M: OpenrouterModel> ModelCaller for Openrouter<M> {
         }
         .map(|p| self.get_model().make_prompt(p));
 
-        let mut messages = Vec::new();
+        let mut messages = Vec::with_capacity(1 + turns.len());
         if let Some(system_prompt) = system_prompt {
             messages.push(system_prompt);
         }
@@ -79,6 +82,7 @@ impl<M: OpenrouterModel> ModelCaller for Openrouter<M> {
                 model: M::MODEL_STR.into(),
                 temperature: params.temperature,
                 provider: Some(crate::data_model::OpenrouterProvider {
+                    // These providers kept returning other ppl's completions :O
                     ignore: vec!["Nebius".into(), "Kluster".into(), "DeepInfra".into()],
                 }),
                 messages,

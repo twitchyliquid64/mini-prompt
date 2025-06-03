@@ -20,9 +20,12 @@ pub enum CallErr {
     NoCompletions,
     /// A network or basic deserialization error occurred.
     API(reqwest::Error),
+    /// A model call API returned a non-2xx status code.
+    RequestFailed(reqwest::StatusCode, String),
     /// Any other error.
     Other(Box<dyn std::error::Error>),
-    ToolFailed(String, String),
+    /// A tool call reported an error instead of returning a result.
+    ToolFailed { name: String, err: String },
 }
 
 impl std::fmt::Debug for CallErr {
@@ -30,10 +33,17 @@ impl std::fmt::Debug for CallErr {
         match self {
             CallErr::NoCompletions => write!(f, "NoCompletions"),
             CallErr::API(err) => f.debug_tuple("API").field(err).finish(),
+            CallErr::RequestFailed(status_code, body) => f
+                .debug_struct("RequestFailed")
+                .field("status_code", status_code)
+                .field("body", body)
+                .finish(),
             CallErr::Other(err) => f.debug_tuple("Other").field(err).finish(),
-            CallErr::ToolFailed(name, err) => {
-                f.debug_tuple("ToolFailed").field(name).field(err).finish()
-            }
+            CallErr::ToolFailed { name, err } => f
+                .debug_struct("ToolFailed")
+                .field("name", name)
+                .field("error", err)
+                .finish(),
         }
     }
 }

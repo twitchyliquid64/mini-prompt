@@ -97,10 +97,8 @@ impl<M: OpenrouterModel> ModelCaller for Openrouter<M> {
             .send()
             .await?;
 
-        // TODO: Dont panic, propergate back as error
         if !resp.status().is_success() {
-            println!("res: {:?}", resp);
-            panic!("body: {:?}", resp.text().await?);
+            return Err(CallErr::RequestFailed(resp.status(), resp.text().await?));
         }
 
         let mut res = resp.json::<OAICompletionsResponse>().await?;
@@ -152,8 +150,6 @@ impl<M: AnthropicModel> ModelCaller for Anthropic<M> {
         }
         messages.extend(turns.into_iter().map(|t| t.into_anthropic_msgs()).flatten());
 
-        println!("msgs: {:?}", messages);
-
         let client = Client::new();
         let resp = client
             .post("https://api.anthropic.com/v1/messages")
@@ -189,10 +185,8 @@ impl<M: AnthropicModel> ModelCaller for Anthropic<M> {
             .send()
             .await?;
 
-        // TODO: Dont panic, propergate back as error
         if !resp.status().is_success() {
-            println!("res: {:?}", resp);
-            panic!("body: {:?}", resp.text().await?);
+            return Err(CallErr::RequestFailed(resp.status(), resp.text().await?));
         }
 
         let mut res = resp.json::<AnthropicMsgResponse>().await?;

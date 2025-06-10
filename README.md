@@ -1,5 +1,7 @@
 # mini-prompt
 
+[![Crates.io](https://img.shields.io/crates/v/mini-prompt.svg)](https://crates.io/crates/mini-prompt) [![mini_prompt](https://docs.rs/mini-prompt/badge.svg)](https://docs.rs/mini-prompt)
+
 Lightweight abstractions for using LLMs via a providers API.
 
 Simple calls:

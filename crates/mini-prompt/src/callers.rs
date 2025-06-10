@@ -2,7 +2,7 @@ use crate::data_model::{
     AnthropicMessage, AnthropicMsgRequest, AnthropicMsgResponse, AnthropicToolChoice,
     OAICompletionsRequest, OAICompletionsResponse, OAIToolChoice,
 };
-use crate::models::{AnthropicModel, Model, OpenrouterModel};
+use crate::models::{AnthropicModel, Model, OpenAIModel, OpenrouterModel};
 use crate::{CallBase, CallErr, CallResp, FinishReason, Message, Turn};
 use reqwest::Client;
 use std::env;
@@ -210,6 +210,91 @@ impl<M: AnthropicModel> ModelCaller for Anthropic<M> {
                 Ok(res.into())
             }
             _ => Err(format!("unexpected finish reason: {:?}", res.stop_reason).into()),
+        }
+    }
+}
+
+/// A [ModelCaller] that talks to a model accessible via the OpenAI chat completions API.
+///
+/// If an API key is not provided, it will be read from the environment variable
+/// `OPENAI_API_KEY`.
+#[derive(Debug, Clone, Default)]
+pub struct Openai<M: OpenAIModel> {
+    pub model: M,
+    pub api_key: Option<String>,
+}
+
+impl<M: OpenAIModel> ModelCaller for Openai<M> {
+    fn get_model(&self) -> impl Model {
+        M::default()
+    }
+
+    async fn call(&mut self, params: CallBase, turns: Vec<Turn>) -> Result<CallResp, CallErr> {
+        // Map `system` and `instructions` into one text stanza, as expected by
+        // this API.
+        let system_prompt = match (params.system != "", params.instructions != "") {
+            (true, true) => Some((params.system + "\n\n" + &params.instructions).into()),
+            (false, true) => Some(params.instructions.clone()),
+            (true, false) => Some(params.system.clone()),
+            (false, false) => None,
+        }
+        .map(|p| self.get_model().make_prompt(p));
+
+        let mut messages = Vec::with_capacity(1 + turns.len());
+        if let Some(system_prompt) = system_prompt {
+            messages.push(system_prompt);
+        }
+        messages.extend(turns.into_iter().map(|t| t.into_oai_msgs()).flatten());
+
+        let client = Client::new();
+        let resp = client
+            .post("https://api.openai.com/v1/chat/completions")
+            .bearer_auth(
+                self.api_key
+                    .clone()
+                    .unwrap_or_else(|| env::var("OPENAI_API_KEY").unwrap()),
+            )
+            .json(&OAICompletionsRequest {
+                model: M::MODEL_STR.into(),
+                temperature: params.temperature,
+                provider: None,
+                messages,
+                tool_choice: if params.tools.is_empty() {
+                    None
+                } else {
+                    Some(OAIToolChoice::Auto)
+                },
+                tools: params.tools.into_iter().map(|td| td.into()).collect(),
+                ..Default::default()
+            })
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(CallErr::RequestFailed(resp.status(), resp.text().await?));
+        }
+
+        let mut res = resp.json::<OAICompletionsResponse>().await?;
+
+        if res.model == "" {
+            res.model = M::MODEL_STR.into();
+        }
+        if let Some("chat.completion") = res.object.as_ref().map(|s| s.as_str()) {
+        } else if res.object.is_some() {
+            return Err(format!("unexpected value for 'object': {}", res.object.unwrap()).into());
+        }
+        if res.choices.len() == 0 {
+            return Err(CallErr::NoCompletions);
+        }
+
+        let finish_reason = res.choices[0].finish_reason.clone();
+        match finish_reason {
+            FinishReason::Stop | FinishReason::ToolCalls => Ok(res.into()),
+            _ => Err(format!(
+                "unexpected finish reason: {:?}",
+                res.choices[0].finish_reason
+            )
+            .into()),
         }
     }
 }

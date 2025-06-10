@@ -159,6 +159,7 @@ pub(crate) struct OAICompletionsRequest {
     pub model: String,
 
     /// Openrouter-specific parameter.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<OpenrouterProvider>,
 
     /// Model input and output

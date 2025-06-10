@@ -21,6 +21,11 @@ pub trait AnthropicModel: Model {
     const MODEL_STR: &'static str;
 }
 
+/// An LLM which can be called via the OpenAI public API.
+pub trait OpenAIModel: Model {
+    const MODEL_STR: &'static str;
+}
+
 /// The Gemma3 27b LLM.
 #[derive(Default, Debug, Clone)]
 pub struct Gemma27B3;
@@ -82,6 +87,24 @@ pub struct GPT4oMini;
 impl OpenrouterModel for GPT4oMini {
     const MODEL_STR: &'static str = &"openai/gpt-4o-mini";
     const NO_SYS_PROMPT: bool = false;
+}
+
+impl OpenAIModel for GPT4oMini {
+    const MODEL_STR: &'static str = &"gpt-4o-mini";
+}
+
+/// OpenAI's GPT-4.1 mini model.
+#[derive(Default, Debug, Clone)]
+pub struct GPT41Mini;
+
+impl OpenAIModel for GPT41Mini {
+    const MODEL_STR: &'static str = &"gpt-4.1-mini";
+}
+
+impl Model for GPT41Mini {
+    fn make_prompt(&self, prompt: String) -> OAIChatMessage {
+        OAIChatMessage::system(prompt)
+    }
 }
 
 /// Deepseek v3 0324

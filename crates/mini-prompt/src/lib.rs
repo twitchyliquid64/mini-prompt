@@ -1,3 +1,56 @@
+//! Lightweight abstractions for using LLMs via a providers API.
+//!
+//! Simple calls:
+//! ```rust,no_run
+//! # use mini_prompt::*;
+//! let mut backend = callers::Openrouter::<models::Gemma27B3>::default();
+//! # tokio::task::spawn(async move {
+//! let resp =
+//!     backend.simple_call("How much wood could a wood-chuck chop").await;
+//! # });
+//! ```
+//!
+//! If you are looking for more control over the input, you can use [call](ModelCaller::call) instead of [simple_call](ModelCaller::simple_call).
+//!
+//!
+//!
+//! With tools:
+//! ```rust,no_run
+//! # use mini_prompt::*;
+//! let backend = callers::Anthropic::<models::ClaudeHaiku35>::default();
+//! let mut session = ToolsSession::new(
+//!             backend,
+//!             vec![
+//!                 (
+//!                     ToolInfo::new("flubb", "Performs the flubb action.", None).into(),
+//!                     Box::new(move |_args| {
+//!                         r#"{"status": "success", "message": "flubb completed successfully"}"#
+//!                             .to_string()
+//!                     }),
+//!                 ),
+//!             ],
+//!         );
+//!
+//! # tokio::task::spawn(async move {
+//! let resp =
+//!     session.simple_call("Go ahead and flubb for me").await;
+//! # });
+//! ```
+//!
+//! Structured output:
+//! ```rust,no_run
+//! # use mini_prompt::*;
+//! # use mini_prompt::parse::*;
+//! let mut backend = callers::Openrouter::<models::Gemma27B3>::default();
+//! # tokio::task::spawn(async move {
+//! let resp =
+//!     backend.simple_call("Whats 2+2? output the final answer as JSON within triple backticks (A markdown code block with json as the language).").await;
+//!
+//! let json = markdown_codeblock(&resp.unwrap(), &MarkdownOptions::json()).unwrap();
+//! let p: serde_json::Value = serde_json_lenient::from_str(&json).expect("json decode");
+//! # });
+//! ```
+
 use serde::{Deserialize, Serialize};
 
 pub mod data_model;
@@ -8,6 +61,7 @@ pub mod parse;
 pub mod models;
 
 pub mod callers;
+
 pub use callers::ModelCaller;
 
 pub mod tools;
@@ -122,10 +176,12 @@ impl From<ToolInfo> for data_model::AnthropicTool {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CallBase {
     /// Short-form information describing the persona of the LLM.
+    ///
+    /// EG: "You are an expert software developer"
     pub system: String,
     /// Task-specific instructions for the LLM.
     pub instructions: String,
-    /// Descriptions of tools that may be used
+    /// Descriptions of tools that may be used.
     pub tools: Vec<ToolInfo>,
 
     pub temperature: Option<f32>,
@@ -148,7 +204,9 @@ impl Default for CallBase {
 /// Describes a round of model input or output.
 #[derive(Debug, Default, Clone)]
 pub struct Turn {
+    /// The source of the content: i.e. the user, the model (assistant), a tool.
     pub role: Role,
+    /// Some data fed into or read from the model.
     pub content: Vec<Message>,
 }
 
@@ -170,6 +228,7 @@ impl From<data_model::OAIChatMessage> for Turn {
 }
 
 impl Turn {
+    /// Converts our broad `Turn` type into the wire format expected by chat completions APIs.
     pub(crate) fn into_oai_msgs(self) -> Vec<OAIChatMessage> {
         use itertools::Itertools;
         self.content
@@ -227,6 +286,7 @@ impl Turn {
             .collect()
     }
 
+    /// Converts our broad `Turn` type into the wire format expected by Anthropic's messages API.
     pub(crate) fn into_anthropic_msgs(self) -> Vec<AnthropicMessage> {
         use itertools::Itertools;
         self.content
@@ -288,17 +348,32 @@ pub enum Role {
 /// A unit of data written or read from the model.
 pub enum Message {
     Text {
+        /// Text tokens fed into or read from the model.
         text: String,
     },
     ToolCall {
+        /// The identifier the model is using for this tool call.
         id: String,
+        /// The name of the function the model wants to call.
         name: String,
+        /// A (usually JSON-formatted) representation of the arguments the
+        /// model is passing to this function call.
         arguments: String,
     },
     ToolResult {
+        /// Corresponds to the ID set by the model in an earlier `ToolCall` message.
         id: String,
+        /// A (usually JSON-formatted) representation of the result of the
+        /// function call.
         result: String,
     },
+}
+
+impl Message {
+    /// Creates a new `Text` message.
+    pub fn text<T: Into<String>>(text: T) -> Self {
+        Self::Text { text: text.into() }
+    }
 }
 
 impl From<data_model::OAIToolCall> for Message {
@@ -350,10 +425,14 @@ pub enum FinishReason {
 /// The response from the model for generating a single turn.
 #[derive(Debug, Clone)]
 pub struct CallResp {
+    /// A provider-specific unique ID for this model call.
     pub id: String,
+    /// Identifier for the model which was called.
     pub model: String,
 
+    /// The reason the model stopped generating tokens.
     pub finish_reason: FinishReason,
+    /// The tokens the model generated.
     pub content: Turn,
 }
 

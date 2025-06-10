@@ -1,3 +1,5 @@
+//! Types that drive a model providers API.
+
 use crate::data_model::{
     AnthropicMessage, AnthropicMsgRequest, AnthropicMsgResponse, AnthropicToolChoice,
     OAICompletionsRequest, OAICompletionsResponse, OAIToolChoice,
@@ -13,7 +15,27 @@ pub trait ModelCaller: Send {
     fn get_model(&self) -> impl Model;
 
     /// Performs a model call, returning the response from the model. This method
-    /// is the workhorse of this trait.
+    /// is the core driver of this crate.
+    ///
+    /// ```rust,no_run
+    /// # use mini_prompt::*;
+    /// # let mut caller = callers::Openrouter::<models::Gemma27B3>::default();
+    /// # tokio::task::spawn(async move {
+    /// caller.call(
+    ///     CallBase {
+    ///         system: "You are an expert coder".to_string(),
+    ///         instructions: "Write a function that returns the X'th number in the fibonnaci sequence".to_string(),
+    ///         ..Default::default()
+    ///     },
+    ///     vec![
+    ///         Turn{
+    ///             role: Role::User,
+    ///             content: vec![Message::text("Oh yea do it in python")],
+    ///         },
+    ///     ],
+    /// );
+    /// # });
+    /// ```
     fn call(
         &mut self,
         params: CallBase,

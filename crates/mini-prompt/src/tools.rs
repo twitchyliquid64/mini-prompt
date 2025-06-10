@@ -1,3 +1,7 @@
+//! Tool-calling scaffolding.
+//!
+//! See `examples/tool_call.rs` for an end-to-end example.
+
 use crate::models::Model;
 use crate::{
     CallBase, CallErr, CallResp, FinishReason, Message, ModelCaller, Role, ToolInfo, Turn,
@@ -5,6 +9,16 @@ use crate::{
 
 const MAX_TOOL_ITER: usize = 12;
 
+/// The type of a function usable in a [ToolsSession].
+///
+/// For example:
+/// ```
+/// # use mini_prompt::tools::RawToolFunc;
+/// let my_tool: RawToolFunc = Box::new(move |_args| {
+///     r#"{"status": "success", "message": "flubb completed successfully"}"#
+///         .to_string()
+/// });
+/// ```
 pub type RawToolFunc = Box<dyn FnMut(String) -> String + Send + Sync>;
 
 // /// A collection of tools a model can use.

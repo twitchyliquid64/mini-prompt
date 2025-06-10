@@ -6,6 +6,17 @@ license = "MIT OR Apache-2.0"
 
 rust-version = "1.78"
 
+description = "Lightweight abstractions for using LLMs via a providers API."
+homepage = "https://github.com/twitchyliquid64/mini-prompt"
+documentation = "https://docs.rs/mini_prompt"
+repository = "https://github.com/twitchyliquid64/mini-prompt"
+readme = "README.md"
+
+keywords = [
+    "llm",
+    "ai",
+]
+
 [[example]]
 name = "model_call"
 

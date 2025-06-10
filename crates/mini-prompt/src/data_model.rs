@@ -155,7 +155,8 @@ pub enum OAIToolChoice {
 /// A request to the OpenAI Chat Completions API.
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct OAICompletionsRequest {
-    /// Model identifier to use for completion
+    /// Model identifier to use. The exact string is different for every model, and often
+    /// varies depending on the provider you are using.
     pub model: String,
 
     /// Openrouter-specific parameter.

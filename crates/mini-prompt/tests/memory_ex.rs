@@ -3,7 +3,7 @@ use mini_prompt::parse::TagOptions;
 use mini_prompt::{callers, ModelCaller};
 use serde::Deserialize;
 
-type M = mini_prompt::models::Gemini2Flash;
+type M = mini_prompt::models::Gemini25Flash;
 
 const BASE: &str = indoc! {
     "You are an AI assistant chatting with a user. You respond to the user based on their message and background knowledge you are provided with.
